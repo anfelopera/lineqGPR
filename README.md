@@ -1,6 +1,11 @@
 # lineqGPR
 ## Gaussian processes regression models with linear inequality constraints
 
+**Updates:**
+  The version 0.2.0 is now available at Github. It contains new implementations
+  based on the MaxMod algorithm proposed in (Bachoc et al., 2020)
+
+
 **Description:**
   *lineqGPR* is a package for Gaussian process interpolation, regression and
   simulation under linear inequality constraints based on (López-Lopera et
@@ -24,15 +29,20 @@
 
 **References**
 
-  López-Lopera, A. F., Bachoc, F., Durrande, N., and Roustant, O. (2017),
+  A. F. López-Lopera, F. Bachoc, N. Durrande and O. Roustant (2018),
   "Finite-dimensional Gaussian approximation with linear inequality constraints".
-  *ArXiv e-prints*
-  [[link]](https://arxiv.org/abs/1710.07453)
+  \emph{SIAM/ASA Journal on Uncertainty Quantification}, 6(3): 1224–1255.
+  \href{https://doi.org/10.1137/17M1153157}{[link]}
 
-  Bachoc, F., Lagnoux, A., and López-Lopera, A. F. (2018),
+  F. Bachoc, A. Lagnoux and A. F. Lopez-Lopera (2019),
   "Maximum likelihood estimation for Gaussian processes under inequality constraints".
-  *ArXiv e-prints*
-  [[link]](https://arxiv.org/abs/1804.03378)
+  \emph{Electronic Journal of Statistics}, 13 (2): 2921-2969.
+  \href{https://doi.org/10.1214/19-EJS1587}{[link]}
+  
+  F. Bachoc, A. F. Lopez-Lopera and O. Roustant (2020),
+  "Sequential construction and dimension reduction of Gaussian processes under inequality constraints".
+  \emph{ArXiv e-prints}
+  \href{https://arxiv.org/abs/2009.04188}{[link]}
 
   Maatouk, H. and Bay, X. (2017),
   "Gaussian process emulators for computer experiments with inequality constraints".
