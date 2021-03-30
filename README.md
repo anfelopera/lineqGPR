@@ -2,7 +2,7 @@
 ## Gaussian processes regression models with linear inequality constraints
 
 **Updates:**
-  The version 0.2.0 is now available at Github. It contains new implementations
+  The beta version 0.2.0 is now available at Github. It contains new implementations
   based on the MaxMod algorithm proposed in (Bachoc et al., 2020)
 
 
@@ -32,17 +32,17 @@
   A. F. López-Lopera, F. Bachoc, N. Durrande and O. Roustant (2018),
   "Finite-dimensional Gaussian approximation with linear inequality constraints".
   \emph{SIAM/ASA Journal on Uncertainty Quantification}, 6(3): 1224–1255.
-  \href{https://doi.org/10.1137/17M1153157}{[link]}
+  [[link]](https://doi.org/10.1137/17M1153157)
 
   F. Bachoc, A. Lagnoux and A. F. Lopez-Lopera (2019),
   "Maximum likelihood estimation for Gaussian processes under inequality constraints".
   \emph{Electronic Journal of Statistics}, 13 (2): 2921-2969.
-  \href{https://doi.org/10.1214/19-EJS1587}{[link]}
+  [[link]](https://doi.org/10.1214/19-EJS1587)
   
   F. Bachoc, A. F. Lopez-Lopera and O. Roustant (2020),
   "Sequential construction and dimension reduction of Gaussian processes under inequality constraints".
   \emph{ArXiv e-prints}
-  \href{https://arxiv.org/abs/2009.04188}{[link]}
+  [[link]](https://arxiv.org/abs/2009.04188)
 
   Maatouk, H. and Bay, X. (2017),
   "Gaussian process emulators for computer experiments with inequality constraints".
