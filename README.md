@@ -25,7 +25,7 @@
   Olivier Roustant (Mines Saint-Étienne) and
   Yves Deville (Alpestat).
   
-**Maintainer:** Andrés Felipe López-Lopera, <andres-felipe.lopez@emse.fr>
+**Maintainer:** Andrés Felipe López-Lopera, <anfelopera@utp.edu.co>
 
 **References**
 
