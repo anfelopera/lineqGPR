@@ -1,10 +1,13 @@
 # lineqGPR
 ## Gaussian processes regression models with linear inequality constraints
 
+**News:**
+  A new beta version 0.3.0 will be available soon at Github. It contains new implementations
+  based on the additive constrained GP model in (López-Lopera et al., 2022)
+
 **Updates:**
   The beta version 0.2.0 is now available at Github. It contains new implementations
   based on the MaxMod algorithm proposed in (Bachoc et al., 2020)
-
 
 **Description:**
   *lineqGPR* is a package for Gaussian process interpolation, regression and
@@ -43,6 +46,11 @@
   "Sequential construction and dimension reduction of Gaussian processes under inequality constraints".
   \emph{ArXiv e-prints}
   [[link]](https://arxiv.org/abs/2009.04188)
+
+  A. F. López-Lopera, F. Bachoc and O. Roustant (2022),
+  "High-dimensional additive Gaussian processes under monotonicity constraints".
+  \emph{ArXiv e-prints}
+  [[link]](https://arxiv.org/abs/2205.08528)
 
   Maatouk, H. and Bay, X. (2017),
   "Gaussian process emulators for computer experiments with inequality constraints".
