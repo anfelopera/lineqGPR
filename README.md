@@ -2,7 +2,7 @@
 ## Gaussian processes regression models with linear inequality constraints
 
 **News:**
-  A new beta version 0.3.0 will be available soon at Github. It contains new implementations
+  The beta version 0.3.0 is now available at Github. It contains new implementations
   based on the additive constrained GP model in (López-Lopera et al., 2022)
 
 **Updates:**
@@ -25,8 +25,7 @@
   
 **Authors:** Andrés Felipe López-Lopera (Mines Saint-Étienne)
   with contributions from
-  Olivier Roustant (Mines Saint-Étienne) and
-  Yves Deville (Alpestat).
+  Olivier Roustant (INSA Toulouse).
   
 **Maintainer:** Andrés Felipe López-Lopera, <anfelopera@utp.edu.co>
 
@@ -34,22 +33,22 @@
 
   A. F. López-Lopera, F. Bachoc, N. Durrande and O. Roustant (2018),
   "Finite-dimensional Gaussian approximation with linear inequality constraints".
-  \emph{SIAM/ASA Journal on Uncertainty Quantification}, 6(3): 1224–1255.
+  *SIAM/ASA Journal on Uncertainty Quantification*, 6(3): 1224–1255.
   [[link]](https://doi.org/10.1137/17M1153157)
 
   F. Bachoc, A. Lagnoux and A. F. Lopez-Lopera (2019),
   "Maximum likelihood estimation for Gaussian processes under inequality constraints".
-  \emph{Electronic Journal of Statistics}, 13 (2): 2921-2969.
+  *Electronic Journal of Statistics*, 13 (2): 2921-2969.
   [[link]](https://doi.org/10.1214/19-EJS1587)
   
-  F. Bachoc, A. F. Lopez-Lopera and O. Roustant (2020),
+  F. Bachoc, A. F. Lopez-Lopera and O. Roustant (2022),
   "Sequential construction and dimension reduction of Gaussian processes under inequality constraints".
-  \emph{ArXiv e-prints}
-  [[link]](https://arxiv.org/abs/2009.04188)
+  *Journal on Mathematics of Data Science*
+  [[link]](https://doi.org/10.1137/21M1407513)
 
   A. F. López-Lopera, F. Bachoc and O. Roustant (2022),
   "High-dimensional additive Gaussian processes under monotonicity constraints".
-  \emph{ArXiv e-prints}
+  *ArXiv e-prints*
   [[link]](https://arxiv.org/abs/2205.08528)
 
   Maatouk, H. and Bay, X. (2017),
