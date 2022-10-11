@@ -3,11 +3,14 @@
 
 **News:**
   The beta version 0.3.0 is now available at Github. It contains new implementations
-  based on the additive constrained GP model in (López-Lopera et al., 2022)
+  based on the additive constrained GP model in (López-Lopera et al., 2022). Numerical
+  examples are given in the folder "notebooks", and in the folder "demo" from
+  lineqGPR_0.3.0.tar.
 
 **Updates:**
   The beta version 0.2.0 is now available at Github. It contains new implementations
-  based on the MaxMod algorithm proposed in (Bachoc et al., 2020)
+  based on the MaxMod algorithm proposed in (Bachoc et al., 2020). Numerical examples
+  are given in the folder "notebooks", and in the folder "demo" from lineqGPR_0.2.0.tar.
 
 **Description:**
   *lineqGPR* is a package for Gaussian process interpolation, regression and
