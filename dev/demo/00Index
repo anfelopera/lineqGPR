@@ -1,0 +1,9 @@
+demToyLineqGP_MultiConstr    A sigmoid example using multiple inequality constraints
+demToyLineqGP_Linear         A sigmoid example using linear inequality constraints
+demToyLineqGP_MultiConstr2D  A 2D example under boundedness and monotonicity constraints
+demToyLineqAGP_Monotonicity  An example in dimension 30 using additive GPs under monotonicity constraints
+demToyLineqAGP_Monotonicity2D  A 2D example using additive GPs under monotonicity constraints
+demToyLineqMaxModGP_MultiConstr2D  An example using GPs under boundedness and monotonicity constraints via MaxMod algorithm
+demToyLineqMaxModGP_Monotonicity5D  An example using GPs under monotonicity constraints via MaxMod algorithm
+demToyLineqMaxModAGP_Monotonicity2D  A 2D example using additive GPs under monotonicity constraints via MaxMod algorithm
+demToyLineqMaxModAGP_Monotonicity5D  A 5D example using additive GPs under monotonicity constraints via MaxMod algorithm

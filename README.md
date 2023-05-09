@@ -1,5 +1,5 @@
 # lineqGPR
-## Gaussian processes regression models with linear inequality constraints
+## Gaussian processes regression with linear inequality constraints
 
 **News:**
   The beta version 0.3.0 is now available at Github. It contains new implementations
@@ -40,13 +40,13 @@
   [[doi]](https://doi.org/10.1137/17M1153157)
   [[preprint]](https://arxiv.org/abs/1710.07453)  
 
-  F. Bachoc, A. Lagnoux and A. F. Lopez-Lopera (2019),
+  F. Bachoc, A. Lagnoux and A. F. López-Lopera (2019),
   "Maximum likelihood estimation for Gaussian processes under inequality constraints".
   *Electronic Journal of Statistics*, 13 (2): 2921-2969.
   [[doi]](https://doi.org/10.1214/19-EJS1587)
   [[preprint]](https://arxiv.org/abs/1804.03378)  
 
-  F. Bachoc, A. F. Lopez-Lopera and O. Roustant (2022),
+  F. Bachoc, A. F. López-Lopera and O. Roustant (2022),
   "Sequential construction and dimension reduction of Gaussian processes under inequality constraints".
   *Journal on Mathematics of Data Science*
   [[doi]](https://doi.org/10.1137/21M1407513)

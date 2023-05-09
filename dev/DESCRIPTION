@@ -1,0 +1,18 @@
+Package: lineqGPR
+Type: Package
+Title: Gaussian Process Regression with Linear Inequality Constraints
+Version: 0.3.0
+Date: 2022-10-11
+Author: Andres F. LOPEZ-LOPERA
+Maintainer: Andres F. LOPEZ-LOPERA <anfelopera@utp.edu.co>
+Description: Gaussian processes regression with linear inequality constraints
+    (Lopez-Lopera et al., 2018) <doi:10.1137/17M1153157>.
+License: GPL-3
+Depends: utils, stats, broom, nloptr, purrr
+Imports: MASS, Matrix, quadprog, mvtnorm, TruncatedNormal, graphics,
+        grDevices, ggplot2, plot3D
+Suggests: Rcpp, testthat, tmg, viridis, tikzDevice, foreach, doParallel
+RoxygenNote: 7.1.2
+Encoding: UTF-8
+NeedsCompilation: yes
+Packaged: 2022-10-11 13:50:52 UTC; allopera
