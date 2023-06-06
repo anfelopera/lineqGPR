@@ -3,7 +3,7 @@ Type: Package
 Title: Gaussian Process Regression with Linear Inequality Constraints
 Version: 0.3.0
 Date: 2022-10-11
-Author: Andres F. LOPEZ-LOPERA
+Author: Andres F. LOPEZ-LOPERA and Mathis DERONZIER
 Maintainer: Andres F. LOPEZ-LOPERA <anfelopera@utp.edu.co>
 Description: Gaussian processes regression with linear inequality constraints
     (Lopez-Lopera et al., 2018) <doi:10.1137/17M1153157>.
