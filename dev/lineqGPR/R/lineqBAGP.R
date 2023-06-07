@@ -48,8 +48,8 @@
 #' @method create lineqBAGP
 #' @export
 create.lineqBAGP <- function(x, y, constrType,
-                            partition = as.list(seq(ncol(x))),
-                            m = NULL) {
+                             partition = as.list(seq(ncol(x))),
+                             m = NULL) {
   # changing the data as matrices
   if (!is.matrix(x))
     x <- as.matrix(x)
@@ -60,34 +60,35 @@ create.lineqBAGP <- function(x, y, constrType,
   nblock <- length(partition) # nb of blocks
   dblock <- sapply(partition, function(x) length(x))
   
-  
-  if (is.null(m)) {
-    mlist <- vector("list", nblock)
-    for (j in 1:nblock) {
-      mlist[[j]] <- vector("list", dblock[j])
-      for (k in 1:dblock[j])
-        mlist[[j]][[k]] <- 10
+  #biject is a function that take an element 'i' and gives the couple [j,k] 
+  #corresponding such that partition[j,k]=i
+  biject <- function(partition, i){
+    for (j in 1:length(partition)){
+      if (i %in% partition[[j]]){
+        return (c(j,which(partition[[j]]==i)))
+      }
     }
-  } else if (length(m) == 1) {
-    mlist <- vector("list", nblock)
-    for (j in 1:nblock) {
-      mlist[[j]] <- rep(m, dblock[j])  #vector("list", dblock[[j]])
-      # for (k in 1:dblock[[j]])
-      #   mlist[[j]][[k]] <- m
-    }
-  } else if  (length(m) == d) {
-    idx_temp = 0
-    mlist <- vector("list", nblock)
-    for (j in 1:nblock) {
-      idx_temp = idx_temp + 1
-      mlist[[j]] <- vector("list", dblock[j])
-      for (k in 1:dblock[j])
-        mlist[[j]][[k]] <- m[idx_temp]
-    }
-  } else {
-    stop("The length of 'm' has to be equal to the input dimension")
   }
   
+  Bij <-lapply(c(1:3), function(x) biject(partition,x))
+  
+  ##Creation mlist type : list[seq]
+  m=10
+  m=NULL
+  mlist <- lapply(1:nblock, function(x) rep(10, dblock[x]))
+  if (length(m)==d){
+    for (k in 1:length(m)){
+      pos<-biject(partition, k)
+      mlist[[pos[1]]][pos[2]] <- m[k]
+    }
+  }else if (length(m) == 1) {
+    mlist <- lapply(1:nblock, function(x) rep(m, dblock[x]))
+  }
+  # else {
+  #   stop("Can not deal with this type of 'm', try: m=NULL, m=c(a_1,....,a_d),
+  #        m=a")
+  # } 
+  # "To see later "
   #### to verify if the partition is a disjoint one and to check that the union is a sequence 1:D ###
   
   u <- vector("list", nblock)
@@ -209,12 +210,12 @@ augment.lineqBAGP<- function(x, ...) {
   x <- model$x
   nblock <- model$localParam$nblock
   dblock <- model$localParam$dblock
-
+  
   # computing the kernel matrix for the prior
   u <- model$ulist
   m <- model$localParam$mlist
   mtotal <- model$localParam$mtotal <- sum(sapply(m, prod))
-
+  
   Gamma <- Phi <- vector("list", nblock)
   for (j in 1:nblock) {
     Gamma[[j]] <- Phi[[j]] <- vector("list", dblock[j])
@@ -230,7 +231,7 @@ augment.lineqBAGP<- function(x, ...) {
   model$u <- u
   model$Gamma <- Gamma
   model$Phi <- Phi
-
+  
   # precomputing the linear system for the QP solver and MCMC samplers
   M <- g <- vector("list", nblock)
   mvec <- vector("list", nblock)
@@ -249,9 +250,9 @@ augment.lineqBAGP<- function(x, ...) {
     } else {
       bounds <- model$constrParam[[k]]$bounds
       lsys <- lineqGPSys(m[k], model$constrType[k], bounds[1], bounds[2],
-                          constrIdx = model$constrIdx, lineqSysType = "oneside")
+                         constrIdx = model$constrIdx, lineqSysType = "oneside")
       lsys2 <- lineqGPSys(m[k], model$constrType[k], bounds[1], bounds[2],
-                           constrIdx = model$constrIdx, rmInf = FALSE)
+                          constrIdx = model$constrIdx, rmInf = FALSE)
     }
     # oneside linear structure for QP.solver: M = [Lambda,-Lambda] and g = [-lb,ub]
     M[[k]] <- lsys$M
@@ -284,9 +285,9 @@ augment.lineqBAGP<- function(x, ...) {
                                                      sep = "", collapse = ","),
                                                ")", sep = "")))
   model$lineqSys$ub <- eval(parse(text = paste("c(",
-                                                  paste("model$constrParam[[", 1:nblock, "]]$ub",
-                                                        sep = "", collapse = ","),
-                                                  ")", sep = "")))
+                                               paste("model$constrParam[[", 1:nblock, "]]$ub",
+                                                     sep = "", collapse = ","),
+                                               ")", sep = "")))
   
   
   return(model)
@@ -370,13 +371,13 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   model <- augment(object)
   if (!is.matrix(xtest))
     xtest <- matrix(xtest, ncol = model$d)
-
+  
   nblock <- model$localParam$nblock
   # passing some terms from the model
   pred <- list()
   class(pred) <- class(model)
   pred$constrParam <- model$constrParam
-
+  
   # precomputing some terms
   Phi.test <- vector("list", nblock)
   for (k in 1:nblock)
@@ -386,7 +387,7 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
                                               paste("Phi.test[[", 1:nblock, "]]",
                                                     sep = "", collapse = ","),
                                               ")", sep = "")))
-    
+  
   # # computing the conditional mean vector and conditional covariance matrix
   # # given the interpolation points
   hfunBigPhi <- parse(text = paste("cbind(",
@@ -418,7 +419,7 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
     PhiGammaPhit <- PhiGammaPhit + model$nugget*diag(nrow(PhiGammaPhit))
     invPhiGammaPhitFull <- chol2inv(chol(PhiGammaPhit + model$varnoise * diag(nt))) # instability issues here
   }
-
+  
   mu <- Sigma <- vector("list", nblock) 
   mlist <- c(0, cumsum(model$localParam$m))
   # SigmaAll <- matrix(0, mt, mt)
@@ -445,7 +446,7 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   C <- as.matrix(temp %*% bigPhi %*% bigGamma)
   C <- (C+t(C))/2
   SigmaAll <- as.matrix(bigGamma - C) # instability issues here
-
+  
   invSigmaAll <- try(chol2inv(chol(SigmaAll + model$nugget * diag(nrow(SigmaAll))))) 
   if (inherits(invSigmaAll,  "try-error")) {
     # browser()
@@ -564,7 +565,7 @@ simulate.lineqBAGP <- function(object, nsim = 1, seed = NULL, xtest, ...) {
   predtime <- proc.time() - predtime
   model <- pred$model
   pred$model <- NULL
-
+  
   nblock <- model$localParam$nblock
   
   # # computing the transformed conditional mode and covariance matrix given
