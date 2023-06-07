@@ -6,6 +6,9 @@
     - To see the existing branches: git branch -a
 3. To change the working branch: git checkout dev-lastname
 
+**Note.** to remove a branch: git branch --delete <branchname>
+
+
 ## Pulling updates from the remote/origin/master to master:
 1. git fetch origin
 2. git checkout master

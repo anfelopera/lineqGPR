@@ -19,6 +19,8 @@
 #' K <- kernCompute(x, type = "gaussian", par =  c(1, 0.1))
 #' image(K, main = "covariance matrix")
 #'
+#' @seealso \code{\link{k1gaussian}}, \code{\link{k1matern52}}, \code{\link{k1matern32}}, \code{\link{k1exponential}} 
+#' 
 #' @export
 kernCompute <- function(x1, x2 = NULL, type, par, d = 1L) {
   kernName <- paste("k", d, type, sep = "")

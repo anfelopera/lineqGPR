@@ -73,8 +73,6 @@ create.lineqBAGP <- function(x, y, constrType,
   Bij <-lapply(c(1:3), function(x) biject(partition,x))
   
   ##Creation mlist type : list[seq]
-  m=10
-  m=NULL
   mlist <- lapply(1:nblock, function(x) rep(10, dblock[x]))
   if (length(m)==d){
     for (k in 1:length(m)){
@@ -232,62 +230,62 @@ augment.lineqBAGP<- function(x, ...) {
   model$Gamma <- Gamma
   model$Phi <- Phi
   
-  # precomputing the linear system for the QP solver and MCMC samplers
-  M <- g <- vector("list", nblock)
-  mvec <- vector("list", nblock)
-  for (k in 1:nblock) {
-    mvec[[k]] <- c()
-    if (model$constrType[k] == "linear") {
-      if (!("Lambda" %in% names(model)))
-        stop('matrix Lambda is not defined')
-      Lambda <- model$constrParam[[k]]$Lambda
-      lb <- model$constrParam[[k]]$lb
-      ub <- model$constrParam[[k]]$ub
-      lsys <- lineqGPSys(nrow(Lambda), model$constrType[k], lb, ub,
-                         Lambda, lineqSysType = "oneside")
-      lsys2 <- lineqGPSys(nrow(Lambda), model$constrType[k], lb, ub,
-                          Lambda, rmInf = FALSE)
-    } else {
-      bounds <- model$constrParam[[k]]$bounds
-      lsys <- lineqGPSys(m[k], model$constrType[k], bounds[1], bounds[2],
-                         constrIdx = model$constrIdx, lineqSysType = "oneside")
-      lsys2 <- lineqGPSys(m[k], model$constrType[k], bounds[1], bounds[2],
-                          constrIdx = model$constrIdx, rmInf = FALSE)
-    }
-    # oneside linear structure for QP.solver: M = [Lambda,-Lambda] and g = [-lb,ub]
-    M[[k]] <- lsys$M
-    g[[k]] <- -matrix(lsys$g)
-    # twosides linear structure (Lambda, lb, ub) for MCMC samplers
-    model$constrParam[[k]]$Lambda <- lsys2$A
-    model$constrParam[[k]]$lb <- lsys2$l
-    model$constrParam[[k]]$ub <- lsys2$u
-    # extra term required for HMC sampler
-    mvec[[k]] <- nrow(lsys2$A)
-  }
-  # adding the parameters to the model structure
-  model$lineqSys$M <- M # for QP solve
-  model$lineqSys$g <- g # for QP solve
-  model$localParam$mvec <- mvec # for HMC sampler
-  
-  model$lineqSys$MAll <- eval(parse(text = paste("bdiag(",
-                                                 paste("model$lineqSys$M[[", 1:nblock, "]]",
-                                                       sep = "", collapse = ","),
-                                                 ")", sep = "")))
-  model$lineqSys$MAll <- matrix(model$lineqSys$MAll, ncol = mtotal)
-  model$lineqSys$gAll <- matrix(unlist(model$lineqSys$g), ncol = 1)
-  model$lineqSys$LambdaAll <- eval(parse(text = paste("bdiag(",
-                                                      paste("model$constrParam[[", 1:nblock, "]]$Lambda",
-                                                            sep = "", collapse = ","),
-                                                      ")", sep = "")))
-  model$lineqSys$LambdaAll <- matrix(model$lineqSys$LambdaAll, ncol = mtotal)  
-  model$lineqSys$lb <- eval(parse(text = paste("c(",
-                                               paste("model$constrParam[[", 1:nblock, "]]$lb",
-                                                     sep = "", collapse = ","),
-                                               ")", sep = "")))
-  model$lineqSys$ub <- eval(parse(text = paste("c(",
-                                               paste("model$constrParam[[", 1:nblock, "]]$ub",
-                                                     sep = "", collapse = ","),
-                                               ")", sep = "")))
+  # # precomputing the linear system for the QP solver and MCMC samplers
+  # M <- g <- vector("list", nblock)
+  # mvec <- vector("list", nblock)
+  # for (k in 1:nblock) {
+  #   mvec[[k]] <- c()
+  #   if (model$constrType[k] == "linear") {
+  #     if (!("Lambda" %in% names(model)))
+  #       stop('matrix Lambda is not defined')
+  #     Lambda <- model$constrParam[[k]]$Lambda
+  #     lb <- model$constrParam[[k]]$lb
+  #     ub <- model$constrParam[[k]]$ub
+  #     lsys <- lineqGPSys(nrow(Lambda), model$constrType[k], lb, ub,
+  #                        Lambda, lineqSysType = "oneside")
+  #     lsys2 <- lineqGPSys(nrow(Lambda), model$constrType[k], lb, ub,
+  #                         Lambda, rmInf = FALSE)
+  #   } else {
+  #     bounds <- model$constrParam[[k]]$bounds
+  #     lsys <- lineqGPSys(m[k], model$constrType[k], bounds[1], bounds[2],
+  #                        constrIdx = model$constrIdx, lineqSysType = "oneside")
+  #     lsys2 <- lineqGPSys(m[k], model$constrType[k], bounds[1], bounds[2],
+  #                         constrIdx = model$constrIdx, rmInf = FALSE)
+  #   }
+  #   # oneside linear structure for QP.solver: M = [Lambda,-Lambda] and g = [-lb,ub]
+  #   M[[k]] <- lsys$M
+  #   g[[k]] <- -matrix(lsys$g)
+  #   # twosides linear structure (Lambda, lb, ub) for MCMC samplers
+  #   model$constrParam[[k]]$Lambda <- lsys2$A
+  #   model$constrParam[[k]]$lb <- lsys2$l
+  #   model$constrParam[[k]]$ub <- lsys2$u
+  #   # extra term required for HMC sampler
+  #   mvec[[k]] <- nrow(lsys2$A)
+  # }
+  # # adding the parameters to the model structure
+  # model$lineqSys$M <- M # for QP solve
+  # model$lineqSys$g <- g # for QP solve
+  # model$localParam$mvec <- mvec # for HMC sampler
+  # 
+  # model$lineqSys$MAll <- eval(parse(text = paste("bdiag(",
+  #                                                paste("model$lineqSys$M[[", 1:nblock, "]]",
+  #                                                      sep = "", collapse = ","),
+  #                                                ")", sep = "")))
+  # model$lineqSys$MAll <- matrix(model$lineqSys$MAll, ncol = mtotal)
+  # model$lineqSys$gAll <- matrix(unlist(model$lineqSys$g), ncol = 1)
+  # model$lineqSys$LambdaAll <- eval(parse(text = paste("bdiag(",
+  #                                                     paste("model$constrParam[[", 1:nblock, "]]$Lambda",
+  #                                                           sep = "", collapse = ","),
+  #                                                     ")", sep = "")))
+  # model$lineqSys$LambdaAll <- matrix(model$lineqSys$LambdaAll, ncol = mtotal)  
+  # model$lineqSys$lb <- eval(parse(text = paste("c(",
+  #                                              paste("model$constrParam[[", 1:nblock, "]]$lb",
+  #                                                    sep = "", collapse = ","),
+  #                                              ")", sep = "")))
+  # model$lineqSys$ub <- eval(parse(text = paste("c(",
+  #                                              paste("model$constrParam[[", 1:nblock, "]]$ub",
+  #                                                    sep = "", collapse = ","),
+  #                                              ")", sep = "")))
   
   
   return(model)
@@ -373,27 +371,52 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
     xtest <- matrix(xtest, ncol = model$d)
   
   nblock <- model$localParam$nblock
+  dblock <- model$localParam$dblock
+  n <- length(model$y)
   # passing some terms from the model
   pred <- list()
   class(pred) <- class(model)
   pred$constrParam <- model$constrParam
   
   # precomputing some terms
+  
   Phi.test <- vector("list", nblock)
-  for (k in 1:nblock)
-    Phi.test[[k]] <- basisCompute.lineqGP(xtest[, k], model$u[[k]])
+  for (j in 1:nblock) {
+    Phi.test[[j]] <- vector("list", dblock[j])
+    for (k in 1:dblock[j]) {
+      Phi.test[[j]][[k]] <- basisCompute.lineqGP(xtest[, model$localParam$partition[[j]][k]],
+                                                 model$ulist[[j]][[k]])
+    }
+  }
   pred$Phi.test <- Phi.test
-  pred$PhiAll.test <- eval(parse(text = paste("cbind(",
-                                              paste("Phi.test[[", 1:nblock, "]]",
-                                                    sep = "", collapse = ","),
-                                              ")", sep = "")))
+  pred$PhiAll.test <- list("vector", nblock)
+  for (j in 1:nblock) {
+    pred$PhiAll.test[[j]] <- matrix(0, n, prod(model$localParam$mlist[[j]]))
+    for (iterObs in 1:n) {
+      hfun <- eval(parse(text = paste("model$Phi.test[[j]][[", 1:dblock[j], "]][", iterObs, ", ]",
+                                      sep = "", collapse = "%x%")))
+      pred$PhiAll.test[[j]][iterObs, ] <- eval(hfun)
+    }
+  }
   
   # # computing the conditional mean vector and conditional covariance matrix
   # # given the interpolation points
+  phiBlocks <- list("vector", nblock)
+  for (j in 1:nblock) {
+    phiBlocks[[j]] <- matrix(0, n, prod(model$localParam$mlist[[j]]))
+    for (iterObs in 1:n) {
+      hfun <- eval(parse(text = paste("model$Phi[[j]][[", 1:dblock[j], "]][", iterObs, ", ]",
+                                            sep = "", collapse = "%x%")))
+      phiBlocks[[j]][iterObs, ] <- eval(hfun)
+    }
+  }
+  
+  
   hfunBigPhi <- parse(text = paste("cbind(",
-                                   paste("model$Phi[[", 1:nblock, "]]", sep = "", collapse = ","),
+                                   paste("phiBlocks[[", 1:nblock, "]]", sep = "", collapse = ","),
                                    ")", sep = ""))
   bigPhi <- eval(hfunBigPhi)
+  
   
   nt <- length(model$y) 
   mt <- model$localParam$mtotal
@@ -401,6 +424,20 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
                                      paste("model$Gamma[[", 1:nblock, "]]", sep = "", collapse = ","),
                                      ")", sep = ""))
   bigGamma <- eval(hfunBigGamma)
+  invGammaBlocks <- lapply(model$Gamma, function(x) chol2inv(chol(x)))
+  hfunInvBigGamma <- parse(text = paste("bdiag(",
+                                        paste("invGammaBlocks[[", 1:nblock, "]]", sep = "", collapse = ","),
+                                     ")", sep = ""))
+  invBigGamma <- eval(hfunInvBigGamma)
+  
+  invBigGammaPhiPhit <- invBigGamma + bigPhi %*% t(bigPhi)/model$varnoise
+  
+  
+  
+  
+  blockPhiGamma <- lapply(1:nblock, function(x) model$Phi[[x]] %*% model$Gamma[[x]])
+  
+  
   
   if (mt < nt) {
     cholGamma <- lapply(model$Gamma, function(x) t(chol(x)))
