@@ -60,35 +60,34 @@ create.lineqBAGP <- function(x, y, constrType,
   nblock <- length(partition) # nb of blocks
   dblock <- sapply(partition, function(x) length(x))
   
-  #biject is a function that take an element 'i' and gives the couple [j,k] 
-  #corresponding such that partition[j,k]=i
-  biject <- function(partition, i){
-    for (j in 1:length(partition)){
-      if (i %in% partition[[j]]){
-        return (c(j,which(partition[[j]]==i)))
-      }
+  
+  if (is.null(m)) {
+    mlist <- vector("list", nblock)
+    for (j in 1:nblock) {
+      mlist[[j]] <- vector("list", dblock[j])
+      for (k in 1:dblock[j])
+        mlist[[j]][[k]] <- 10
     }
+  } else if (length(m) == 1) {
+    mlist <- vector("list", nblock)
+    for (j in 1:nblock) {
+      mlist[[j]] <- rep(m, dblock[j])  #vector("list", dblock[[j]])
+      # for (k in 1:dblock[[j]])
+      #   mlist[[j]][[k]] <- m
+    }
+  } else if  (length(m) == d) {
+    idx_temp = 0
+    mlist <- vector("list", nblock)
+    for (j in 1:nblock) {
+      idx_temp = idx_temp + 1
+      mlist[[j]] <- vector("list", dblock[j])
+      for (k in 1:dblock[j])
+        mlist[[j]][[k]] <- m[idx_temp]
+    }
+  } else {
+    stop("The length of 'm' has to be equal to the input dimension")
   }
   
-  Bij <-lapply(c(1:3), function(x) biject(partition,x))
-  
-  ##Creation mlist type : list[seq]
-  m=10
-  m=NULL
-  mlist <- lapply(1:nblock, function(x) rep(10, dblock[x]))
-  if (length(m)==d){
-    for (k in 1:length(m)){
-      pos<-biject(partition, k)
-      mlist[[pos[1]]][pos[2]] <- m[k]
-    }
-  }else if (length(m) == 1) {
-    mlist <- lapply(1:nblock, function(x) rep(m, dblock[x]))
-  }
-  # else {
-  #   stop("Can not deal with this type of 'm', try: m=NULL, m=c(a_1,....,a_d),
-  #        m=a")
-  # } 
-  # "To see later "
   #### to verify if the partition is a disjoint one and to check that the union is a sequence 1:D ###
   
   u <- vector("list", nblock)
