@@ -1,6 +1,8 @@
 #' @title Creation Method for the \code{"lineqBAGP"} S3 Class
 #' @description Creation method for the \code{"lineqBAGP"} S3 class.
 #' 
+#' @param partition a list of list making a partion of set $\{1,cdots,D\}$
+#' @param subdivision a list of list containing sequence of subdivision of segment $[0,1]$
 #' @param x a vector or matrix with the input data. The dimensions should be indexed by columns
 #' @param y a vector with the output data
 #' @param constrType a character string corresponding to the type of the inequality constraint
@@ -47,6 +49,7 @@
 #' 
 #' @method create lineqBAGP
 #' @export
+ 
 create.lineqBAGP <- function(x, y, constrType,
                              partition = as.list(seq(ncol(x))),
                              m = NULL) {
@@ -62,7 +65,7 @@ create.lineqBAGP <- function(x, y, constrType,
   
   #biject is a function that take an element 'i' and gives the couple [j,k] 
   #corresponding such that partition[j,k]=i
-  biject <- function(partition, i){
+  bijection <- function(partition, i){
     for (j in 1:length(partition)){
       if (i %in% partition[[j]]){
         return (c(j,which(partition[[j]]==i)))
@@ -70,16 +73,18 @@ create.lineqBAGP <- function(x, y, constrType,
     }
   }
   
-  Bij <-lapply(c(1:3), function(x) biject(partition,x))
+  #Bij <-lapply(c(1:3), function(x) biject(partition,x)) useful?
   
-  ##Creation mlist type : list[seq]
+  #Creation mlist if m.type=list[seq]
   mlist <- lapply(1:nblock, function(x) rep(10, dblock[x]))
   if (length(m)==d){
     for (k in 1:length(m)){
-      pos<-biject(partition, k)
+      pos<-bijection(partition, k)
       mlist[[pos[1]]][pos[2]] <- m[k]
     }
-  }else if (length(m) == 1) {
+  }
+  #Creation mlist if m.type=float
+  else if (length(m) == 1) {
     mlist <- lapply(1:nblock, function(x) rep(m, dblock[x]))
   }
   # else {
@@ -89,11 +94,11 @@ create.lineqBAGP <- function(x, y, constrType,
   # "To see later "
   #### to verify if the partition is a disjoint one and to check that the union is a sequence 1:D ###
   
-  u <- vector("list", nblock)
+  subdivision <- vector("list", nblock)
   for (j in 1:nblock) {
-    u[[j]] <- vector("list", dblock[j])
+    subdivision[[j]] <- vector("list", dblock[j])
     for (k in 1:dblock[j])
-      u[[j]][[k]] <- matrix(seq(0, 1, by = 1/(mlist[[j]][k]-1)), ncol = 1) # discretization vector
+      subdivision[[j]][[k]] <- matrix(seq(0, 1, by = 1/(mlist[[j]][k]-1)), ncol = 1) # discretization vector
   }
   
   
@@ -105,6 +110,9 @@ create.lineqBAGP <- function(x, y, constrType,
   
   
   names(localParam$partition) <- paste('block', 1:localParam$nblock, sep = "")
+  
+  ##Constraints 
+  
   constrFlags <- rep(1, nblock) # to be checked later 
   
   kernParam <- vector("list", localParam$nblock)
@@ -134,7 +142,7 @@ create.lineqBAGP <- function(x, y, constrType,
   }
   constrIdx <- which(constrFlags == 1)
   # creating the full list for the model
-  model <- list(x = x, y = y, constrType = constrType,  ulist = u,
+  model <- list(x = x, y = y, constrType = constrType,  subdivision = subdivision,
                 d = d,  nugget = 1e-9, 
                 constrIdx = constrIdx, constrParam = constrParam,
                 varnoise = 0,  localParam = localParam, kernParam = kernParam)
@@ -195,6 +203,7 @@ create.lineqBAGP <- function(x, y, constrType,
 #'
 #' @importFrom broom augment
 #' @export
+
 augment.lineqBAGP<- function(x, ...) {
   model <- x
   if (!("nugget" %in% names(model)))
@@ -210,23 +219,23 @@ augment.lineqBAGP<- function(x, ...) {
   dblock <- model$localParam$dblock
   
   # computing the kernel matrix for the prior
-  u <- model$ulist
-  m <- model$localParam$mlist
-  mtotal <- model$localParam$mtotal <- sum(sapply(m, prod))
+  subdivision <- model$subdivision
+  mlist <- model$localParam$mlist
+  mtotal <- model$localParam$mtotal <- sum(sapply(mlist, prod))
   
   Gamma <- Phi <- vector("list", nblock)
   for (j in 1:nblock) {
     Gamma[[j]] <- Phi[[j]] <- vector("list", dblock[j])
     for (k in 1:dblock[j]) {
-      Gamma[[j]][[k]] <- kernCompute(u[[j]][[k]], u[[j]][[k]], model$kernParam[[j]]$type,
+      Gamma[[j]][[k]] <- kernCompute(subdivision[[j]][[k]], subdivision[[j]][[k]], model$kernParam[[j]]$type,
                                      model$kernParam[[j]]$par[c(1, k+1)])
       
       Phi[[j]][[k]] <- basisCompute.lineqGP(x[, model$localParam$partition[[j]][k]],
-                                            u[[j]][[k]])
+                                            subdivision[[j]][[k]])
     }
   }
   
-  model$u <- u
+  model$subdivision <- subdivision
   model$Gamma <- Gamma
   model$Phi <- Phi
   
@@ -388,7 +397,7 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
     Phi.test[[j]] <- vector("list", dblock[j])
     for (k in 1:dblock[j]) {
       Phi.test[[j]][[k]] <- basisCompute.lineqGP(xtest[, model$localParam$partition[[j]][k]],
-                                                 model$ulist[[j]][[k]])
+                                                 model$subdivision[[j]][[k]])
     }
   }
   pred$Phi.test <- Phi.test
@@ -405,7 +414,7 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   # # computing the conditional mean vector and conditional covariance matrix
   # # given the interpolation points
   GammaBlocks <- phiBlocks <- list("vector", nblock)
-  for (j in 1:nblock) {
+  for (j in 1:nblock){
     phiBlocks[[j]] <- matrix(0, nt, prod(model$localParam$mlist[[j]]))
     for (iterObs in 1:nt) {
       hfun <- eval(parse(text = paste("model$Phi[[j]][[", 1:dblock[j], "]][", iterObs, ", ]",
@@ -428,6 +437,11 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
                                      ")", sep = ""))
   bigGamma <- eval(hfunBigGamma)
   
+  ##Function to have stable inverse of symetric matrices
+  stable_inv <-function(Sym){
+    cholSym <- lapply(Sym, function(x) chol(x))
+    invSym <- lapply(cholSym, function(x) chol2inv(x))
+  }
   cholGammaBlocks <- lapply(GammaBlocks, function(x) chol(x))
   invGammaBlocks <- lapply(cholGammaBlocks, function(x) chol2inv(x))
   hfunInvBigGamma <- parse(text = paste("bdiag(",
@@ -436,7 +450,7 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   invBigGamma <- eval(hfunInvBigGamma)
   invSigmaAll <- as.matrix(invBigGamma) + t(bigPhi)%*%bigPhi/model$varnoise
   
-  
+  #τ^{-2}[In − ΨL(τ^2 I_m + (ΨL)^t ΨL)^{−1}(ΨL)^t ]
   ### to be adapted !! ###
   if (mt < nt) {
     hfunBigCholGamma <- parse(text = paste("bdiag(",
