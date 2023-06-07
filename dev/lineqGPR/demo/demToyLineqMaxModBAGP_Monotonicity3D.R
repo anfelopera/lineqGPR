@@ -41,6 +41,8 @@ model$nugget <- 1e-5
 model$varnoise <- 0.05*sd(ydesign)^2 
 
 model_test <- augment(model)
+pred <- predict(model, xtest)
+
 
 # model_temp <- lineqGPOptim(model,
 #                            additive = TRUE,
