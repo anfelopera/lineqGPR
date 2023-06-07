@@ -372,7 +372,10 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   
   nblock <- model$localParam$nblock
   dblock <- model$localParam$dblock
-  n <- length(model$y)
+  
+  nt <- length(model$y) 
+  mt <- model$localParam$mtotal
+  
   # passing some terms from the model
   pred <- list()
   class(pred) <- class(model)
@@ -391,9 +394,9 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   pred$Phi.test <- Phi.test
   pred$PhiAll.test <- list("vector", nblock)
   for (j in 1:nblock) {
-    pred$PhiAll.test[[j]] <- matrix(0, n, prod(model$localParam$mlist[[j]]))
-    for (iterObs in 1:n) {
-      hfun <- eval(parse(text = paste("model$Phi.test[[j]][[", 1:dblock[j], "]][", iterObs, ", ]",
+    pred$PhiAll.test[[j]] <- matrix(0, nt, prod(model$localParam$mlist[[j]]))
+    for (iterObs in 1:nt) {
+      hfun <- eval(parse(text = paste("Phi.test[[j]][[", 1:dblock[j], "]][", iterObs, ", ]",
                                       sep = "", collapse = "%x%")))
       pred$PhiAll.test[[j]][iterObs, ] <- eval(hfun)
     }
@@ -401,48 +404,43 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   
   # # computing the conditional mean vector and conditional covariance matrix
   # # given the interpolation points
-  phiBlocks <- list("vector", nblock)
+  GammaBlocks <- phiBlocks <- list("vector", nblock)
   for (j in 1:nblock) {
-    phiBlocks[[j]] <- matrix(0, n, prod(model$localParam$mlist[[j]]))
-    for (iterObs in 1:n) {
+    phiBlocks[[j]] <- matrix(0, nt, prod(model$localParam$mlist[[j]]))
+    for (iterObs in 1:nt) {
       hfun <- eval(parse(text = paste("model$Phi[[j]][[", 1:dblock[j], "]][", iterObs, ", ]",
-                                            sep = "", collapse = "%x%")))
+                                      sep = "", collapse = "%x%")))
       phiBlocks[[j]][iterObs, ] <- eval(hfun)
     }
+    
+    hfun <- eval(parse(text = paste("model$Gamma[[j]][[", 1:dblock[j], "]]",
+                                    sep = "", collapse = "%x%")))
+    GammaBlocks[[j]] <- eval(hfun)
   }
-  
   
   hfunBigPhi <- parse(text = paste("cbind(",
                                    paste("phiBlocks[[", 1:nblock, "]]", sep = "", collapse = ","),
                                    ")", sep = ""))
   bigPhi <- eval(hfunBigPhi)
   
-  
-  nt <- length(model$y) 
-  mt <- model$localParam$mtotal
   hfunBigGamma <- parse(text = paste("bdiag(",
-                                     paste("model$Gamma[[", 1:nblock, "]]", sep = "", collapse = ","),
+                                     paste("GammaBlocks[[", 1:nblock, "]]", sep = "", collapse = ","),
                                      ")", sep = ""))
   bigGamma <- eval(hfunBigGamma)
-  invGammaBlocks <- lapply(model$Gamma, function(x) chol2inv(chol(x)))
+  
+  cholGammaBlocks <- lapply(GammaBlocks, function(x) chol(x))
+  invGammaBlocks <- lapply(cholGammaBlocks, function(x) chol2inv(x))
   hfunInvBigGamma <- parse(text = paste("bdiag(",
                                         paste("invGammaBlocks[[", 1:nblock, "]]", sep = "", collapse = ","),
-                                     ")", sep = ""))
+                                        ")", sep = ""))
   invBigGamma <- eval(hfunInvBigGamma)
-  
-  invBigGammaPhiPhit <- invBigGamma + bigPhi %*% t(bigPhi)/model$varnoise
-  
+  invSigmaAll <- as.matrix(invBigGamma) + t(bigPhi)%*%bigPhi/model$varnoise
   
   
-  
-  blockPhiGamma <- lapply(1:nblock, function(x) model$Phi[[x]] %*% model$Gamma[[x]])
-  
-  
-  
+  ### to be adapted !! ###
   if (mt < nt) {
-    cholGamma <- lapply(model$Gamma, function(x) t(chol(x)))
     hfunBigCholGamma <- parse(text = paste("bdiag(",
-                                           paste("cholGamma[[", 1:nblock, "]]", sep = "", collapse = ","),
+                                           paste("cholGammaBlocks[[", 1:nblock, "]]", sep = "", collapse = ","),
                                            ")", sep = ""))
     bigCholGamma <- as.matrix(eval(hfunBigCholGamma))
     PhibigCholGamma <- bigPhi %*% bigCholGamma
@@ -457,57 +455,23 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
     invPhiGammaPhitFull <- chol2inv(chol(PhiGammaPhit + model$varnoise * diag(nt))) # instability issues here
   }
   
-  mu <- Sigma <- vector("list", nblock) 
-  mlist <- c(0, cumsum(model$localParam$m))
-  # SigmaAll <- matrix(0, mt, mt)
-  for (k in 1:nblock) {
-    GammaPhit_k <- model$Gamma[[k]] %*% t(model$Phi[[k]])
-    temp <- GammaPhit_k %*% invPhiGammaPhitFull
-    
-    mu[[k]] <- temp %*% model$y
-    Sigma[[k]] <- model$Gamma[[k]] - temp %*%t(GammaPhit_k)
-    # SigmaAll[(mlist[k]+1):mlist[k+1], (mlist[k]+1):mlist[k+1]] <- Sigma[[k]]
-    # if (k < nblock) {
-    #   for (kk in (k+1):(nblock)) {
-    #     GammaPhit_kk <- model$Phi[[kk]] %*% model$Gamma[[kk]] 
-    #     Sigma_cross_temp <- - temp %*% GammaPhit_kk
-    #     SigmaAll[(mlist[k]+1):(mlist[k+1]), (mlist[kk]+1):mlist[kk+1]] <- Sigma_cross_temp
-    #     SigmaAll[(mlist[kk]+1):mlist[kk+1], (mlist[k]+1):(mlist[k+1])] <- t(Sigma_cross_temp)
-    #   }
-    # }
-  }
-  # muAll <- as.vector(c(mu))
-  
+
   temp <- bigGamma%*%t(bigPhi) %*% invPhiGammaPhitFull
   muAll <- as.vector(temp %*% model$y)
-  C <- as.matrix(temp %*% bigPhi %*% bigGamma)
-  C <- (C+t(C))/2
-  SigmaAll <- as.matrix(bigGamma - C) # instability issues here
   
-  invSigmaAll <- try(chol2inv(chol(SigmaAll + model$nugget * diag(nrow(SigmaAll))))) 
-  if (inherits(invSigmaAll,  "try-error")) {
-    # browser()
-    PhiGammaPhit <- as.matrix(bigPhi %*% bigGamma %*% t(bigPhi))
-    PhiGammaPhit <- PhiGammaPhit + model$nugget*diag(nrow(PhiGammaPhit))
-    invPhiGammaPhitFull <- chol2inv(chol(PhiGammaPhit + model$varnoise * diag(nt))) # instability issues here
-    temp <- bigGamma%*%t(bigPhi) %*% invPhiGammaPhitFull
-    muAll <- as.vector(temp %*% model$y)
-    C <- as.matrix(temp %*% bigPhi %*% bigGamma)
-    C <- (C+t(C))/2
-    SigmaAll <- as.matrix(bigGamma - C) # instability issues here
-    invSigmaAll <- try(chol2inv(chol(SigmaAll + model$nugget * diag(nrow(SigmaAll))))) 
-  }
-  if (inherits(invSigmaAll,  "try-error"))
-    browser()
+  plot(ydesign, bigPhi%*%muAll)
   
   pred$mu <- mu
   pred$Sigma <- Sigma
   pred$muAll <- muAll #matrix(c(mu), ncol = 1)
   pred$SigmaAll <- SigmaAll
   
-  invSigmaAll <- chol2inv(chol(SigmaAll + model$nugget * diag(nrow(SigmaAll))))
+  
   xiAll.map <- solve.QP(invSigmaAll, t(pred$muAll) %*% invSigmaAll,
                         t(model$lineqSys$MAll), model$lineqSys$gAll)$solution
+  ### to be adapted !! ###
+  
+  
   pred$xiAll.map <- xiAll.map
   
   pred$xi.map <- vector("list", nblock)
