@@ -204,6 +204,7 @@ create.lineqBAGP <- function(x, y, constrType,
 #'
 #' @importFrom broom augment
 #' @export
+
 augment.lineqBAGP<- function(x, ...) {
   model <- x
   if (!("nugget" %in% names(model)))
@@ -219,23 +220,23 @@ augment.lineqBAGP<- function(x, ...) {
   dblock <- model$localParam$dblock
   
   # computing the kernel matrix for the prior
-  u <- model$ulist
-  m <- model$localParam$mlist
-  mtotal <- model$localParam$mtotal <- sum(sapply(m, prod))
+  subdivision <- model$subdivision
+  mlist <- model$localParam$mlist
+  mtotal <- model$localParam$mtotal <- sum(sapply(mlist, prod))
   
   Gamma <- Phi <- vector("list", nblock)
   for (j in 1:nblock) {
     Gamma[[j]] <- Phi[[j]] <- vector("list", dblock[j])
     for (k in 1:dblock[j]) {
-      Gamma[[j]][[k]] <- kernCompute(u[[j]][[k]], u[[j]][[k]], model$kernParam[[j]]$type,
+      Gamma[[j]][[k]] <- kernCompute(subdivision[[j]][[k]], subdivision[[j]][[k]], model$kernParam[[j]]$type,
                                      model$kernParam[[j]]$par[c(1, k+1)])
       
       Phi[[j]][[k]] <- basisCompute.lineqGP(x[, model$localParam$partition[[j]][k]],
-                                            u[[j]][[k]])
+                                            subdivision[[j]][[k]])
     }
   }
   
-  model$u <- u
+  model$subdivision <- subdivision
   model$Gamma <- Gamma
   model$Phi <- Phi
   
