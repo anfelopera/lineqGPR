@@ -64,12 +64,12 @@ create.lineqBAGP <- function(x, y, constrType,
   nblock <- length(partition) # nb of blocks
   dblock <- sapply(partition, function(x) length(x))
   
-  #biject is a function that take an element 'i' and gives the couple [j,k] 
-  #corresponding such that partition[j,k]=i
-  bijection <- function(partition, i){
-    for (j in 1:length(partition)){
-      if (i %in% partition[[j]]){
-        return (c(j,which(partition[[j]]==i)))
+  # bijection is a function that take an element 'i' and gives the couple [j,k] 
+  # corresponding such that partition[j,k]=i
+  bijection <- function(partition, i) {
+    for (j in 1:length(partition)) {
+      if (i %in% partition[[j]]) {
+        return (c(j, which(partition[[j]] == i)))
       }
     }
   }
@@ -78,9 +78,9 @@ create.lineqBAGP <- function(x, y, constrType,
   
   #Creation mlist if m.type=list[seq]
   mlist <- lapply(1:nblock, function(x) rep(10, dblock[x]))
-  if (length(m)==d){
+  if (length(m) == d){
     for (k in 1:length(m)){
-      pos<-bijection(partition, k)
+      pos <- bijection(partition, k)
       mlist[[pos[1]]][pos[2]] <- m[k]
     }
   }
@@ -96,11 +96,9 @@ create.lineqBAGP <- function(x, y, constrType,
   #### to verify if the partition is a disjoint one and to check that the union is a sequence 1:D ###
   
   subdivision <- vector("list", nblock)
-  for (j in 1:nblock) {
-    subdivision[[j]] <- vector("list", dblock[j])
-    for (k in 1:dblock[j])
-      subdivision[[j]][[k]] <- matrix(seq(0, 1, by = 1/(mlist[[j]][k]-1)), ncol = 1) # discretization vector
-  }
+  for (j in 1:nblock)
+    subdivision[[j]] <- lapply(1:dblock[j],
+                               function(k) matrix(seq(0, 1, by = 1/(mlist[[j]][k]-1)), ncol = 1))
   
   
   # creating some lists for the model
@@ -118,7 +116,7 @@ create.lineqBAGP <- function(x, y, constrType,
   
   kernParam <- vector("list", localParam$nblock)
   constrParam <- vector("list", localParam$nblock)
-  for (k in 1:localParam$nblock) { # to be checked later! We will focus on the monotonicity constraint
+  for (k in 1:nblock) { # to be checked later! We will focus on the monotonicity constraint
     kernParam[[k]] <- list(par = c(sigma2 = 1^2, theta = rep(0.1, dblock[k])), type = "matern52")#, nugget = 1e-7*sd(y))
     switch (constrType[k],
             boundedness = {
@@ -141,7 +139,7 @@ create.lineqBAGP <- function(x, y, constrType,
             }
     )
   }
-  constrIdx <- which(constrFlags == 1)
+  constrIdx <- which(constrFlags == 1) # to be checked !!
   # creating the full list for the model
   model <- list(x = x, y = y, constrType = constrType,  subdivision = subdivision,
                 d = d,  nugget = 1e-9, 
@@ -218,59 +216,66 @@ augment.lineqBAGP<- function(x, ...) {
   x <- model$x
   nblock <- model$localParam$nblock
   dblock <- model$localParam$dblock
-  
-  # computing the kernel matrix for the prior
+  partition <- model$localParam$partition
   subdivision <- model$subdivision
   mlist <- model$localParam$mlist
   mtotal <- model$localParam$mtotal <- sum(sapply(mlist, prod))
   
-  Gamma <- Phi <- vector("list", nblock)
+  Gamma.perVar <- Phi.perVar <- vector("list", nblock)
   for (j in 1:nblock) {
-    Gamma[[j]] <- Phi[[j]] <- vector("list", dblock[j])
-    for (k in 1:dblock[j]) {
-      Gamma[[j]][[k]] <- kernCompute(subdivision[[j]][[k]], subdivision[[j]][[k]], model$kernParam[[j]]$type,
-                                     model$kernParam[[j]]$par[c(1, k+1)])
-      
-      Phi[[j]][[k]] <- basisCompute.lineqGP(x[, model$localParam$partition[[j]][k]],
-                                            subdivision[[j]][[k]])
-    }
+    Gamma.perVar[[j]] <- lapply(1:dblock[j],
+                                function(k) kernCompute(subdivision[[j]][[k]],
+                                                        subdivision[[j]][[k]],
+                                                        model$kernParam[[j]]$type,
+                                                        model$kernParam[[j]]$par[c(1, k+1)]))
+    Phi.perVar[[j]] <- lapply(1:dblock[j],
+                              function(k) basisCompute.lineqGP(x[, partition[[j]][k]],
+                                                               subdivision[[j]][[k]]))
+
   }
   
   model$subdivision <- subdivision
-  model$Gamma <- Gamma
-  model$Phi <- Phi
+  model$Gamma.perVar <- Gamma.perVar
+  model$Phi.perVar <- Phi.perVar
   
   # # precomputing the linear system for the QP solver and MCMC samplers
   # M <- g <- vector("list", nblock)
   # mvec <- vector("list", nblock)
-  # for (k in 1:nblock) {
-  #   mvec[[k]] <- c()
-  #   if (model$constrType[k] == "linear") {
-  #     if (!("Lambda" %in% names(model)))
-  #       stop('matrix Lambda is not defined')
-  #     Lambda <- model$constrParam[[k]]$Lambda
-  #     lb <- model$constrParam[[k]]$lb
-  #     ub <- model$constrParam[[k]]$ub
-  #     lsys <- lineqGPSys(nrow(Lambda), model$constrType[k], lb, ub,
-  #                        Lambda, lineqSysType = "oneside")
-  #     lsys2 <- lineqGPSys(nrow(Lambda), model$constrType[k], lb, ub,
-  #                         Lambda, rmInf = FALSE)
-  #   } else {
-  #     bounds <- model$constrParam[[k]]$bounds
-  #     lsys <- lineqGPSys(m[k], model$constrType[k], bounds[1], bounds[2],
-  #                        constrIdx = model$constrIdx, lineqSysType = "oneside")
-  #     lsys2 <- lineqGPSys(m[k], model$constrType[k], bounds[1], bounds[2],
-  #                         constrIdx = model$constrIdx, rmInf = FALSE)
+  # for (j in 1:nblock) {
+  #   for (k in 1:dblock) {
+  #     mvec[[j]] <- c()
+  #     if (model$constrType[j] == "linear") {
+  #       if (!("Lambda" %in% names(model)))
+  #         stop('matrix Lambda is not defined')
+  #       Lambda <- model$constrParam[[j]]$Lambda
+  #       lb <- model$constrParam[[j]]$lb
+  #       ub <- model$constrParam[[j]]$ub
+  #       lsys <- lineqGPSys(nrow(Lambda), model$constrType[j], lb, ub,
+  #                          Lambda, lineqSysType = "oneside")
+  #       lsys2 <- lineqGPSys(nrow(Lambda), model$constrType[j], lb, ub,
+  #                           Lambda, rmInf = FALSE)
+  #     } else {
+  #       bounds <- model$constrParam[[j]]$bounds
+  #       
+  #       for (k in 1:dblock[j]) {
+  #         lsys <- lineqGPSys(mlist[j], model$constrType[j], bounds[1], bounds[2],
+  #                            constrIdx = model$constrIdx, lineqSysType = "oneside")
+  #         lsys2 <- lineqGPSys(mlist[j], model$constrType[j], bounds[1], bounds[2],
+  #                             constrIdx = model$constrIdx, rmInf = FALSE)
+  #       }
+  #       
+  #       
+  #     }
+  #     # oneside linear structure for QP.solver: M = [Lambda,-Lambda] and g = [-lb,ub]
+  #     M[[j]] <- lsys$M
+  #     g[[j]] <- -matrix(lsys$g)
+  #     # twosides linear structure (Lambda, lb, ub) for MCMC samplers
+  #     model$constrParam[[j]]$Lambda <- lsys2$A
+  #     model$constrParam[[j]]$lb <- lsys2$l
+  #     model$constrParam[[j]]$ub <- lsys2$u
+  #     # extra term required for HMC sampler
+  #     mvec[[j]] <- nrow(lsys2$A)
   #   }
-  #   # oneside linear structure for QP.solver: M = [Lambda,-Lambda] and g = [-lb,ub]
-  #   M[[k]] <- lsys$M
-  #   g[[k]] <- -matrix(lsys$g)
-  #   # twosides linear structure (Lambda, lb, ub) for MCMC samplers
-  #   model$constrParam[[k]]$Lambda <- lsys2$A
-  #   model$constrParam[[k]]$lb <- lsys2$l
-  #   model$constrParam[[k]]$ub <- lsys2$u
-  #   # extra term required for HMC sampler
-  #   mvec[[k]] <- nrow(lsys2$A)
   # }
   # # adding the parameters to the model structure
   # model$lineqSys$M <- M # for QP solve
@@ -287,7 +292,7 @@ augment.lineqBAGP<- function(x, ...) {
   #                                                     paste("model$constrParam[[", 1:nblock, "]]$Lambda",
   #                                                           sep = "", collapse = ","),
   #                                                     ")", sep = "")))
-  # model$lineqSys$LambdaAll <- matrix(model$lineqSys$LambdaAll, ncol = mtotal)  
+  # model$lineqSys$LambdaAll <- matrix(model$lineqSys$LambdaAll, ncol = mtotal)
   # model$lineqSys$lb <- eval(parse(text = paste("c(",
   #                                              paste("model$constrParam[[", 1:nblock, "]]$lb",
   #                                                    sep = "", collapse = ","),
@@ -296,7 +301,7 @@ augment.lineqBAGP<- function(x, ...) {
   #                                              paste("model$constrParam[[", 1:nblock, "]]$ub",
   #                                                    sep = "", collapse = ","),
   #                                              ")", sep = "")))
-  
+  # 
   
   return(model)
 }
@@ -382,9 +387,11 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   
   nblock <- model$localParam$nblock
   dblock <- model$localParam$dblock
-  
-  nt <- length(model$y) 
-  mt <- model$localParam$mtotal
+  mlist <- model$localParam$mlist
+  partition <- model$localParam$partition
+    
+  nt <- length(model$y) # nb of training points 
+  mt <- model$localParam$mtotal # total nb of knots
   
   # passing some terms from the model
   pred <- list()
@@ -393,64 +400,55 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   
   # precomputing some terms
   
-  Phi.test <- vector("list", nblock)
-  for (j in 1:nblock) {
-    Phi.test[[j]] <- vector("list", dblock[j])
-    for (k in 1:dblock[j]) {
-      Phi.test[[j]][[k]] <- basisCompute.lineqGP(xtest[, model$localParam$partition[[j]][k]],
-                                                 model$subdivision[[j]][[k]])
-    }
-  }
-  pred$Phi.test <- Phi.test
-  pred$PhiAll.test <- list("vector", nblock)
-  for (j in 1:nblock) {
-    pred$PhiAll.test[[j]] <- matrix(0, nt, prod(model$localParam$mlist[[j]]))
-    for (iterObs in 1:nt) {
-      hfun <- eval(parse(text = paste("Phi.test[[j]][[", 1:dblock[j], "]][", iterObs, ", ]",
-                                      sep = "", collapse = "%x%")))
-      pred$PhiAll.test[[j]][iterObs, ] <- eval(hfun)
-    }
-  }
+  Gamma.perBlock <- list("vector", nblock)
+  Phi.perBlock <- list("vector", nblock)
   
+  Phi.test.perVar <- vector("list", nblock)
+  Phi.test.perBlock <- vector("list", nblock)
+  
+  for (j in 1:nblock) {
+    Gamma.perBlock[[j]] <- eval(parse(text = paste("model$Gamma.perVar[[j]][[", 1:dblock[j], "]]",
+                                                   sep = "", collapse = "%x%")))
+    
+    Phi.perBlock[[j]] <- matrix(0, nt, prod(mlist[[j]]))
+    for (n in 1:nt)
+      Phi.perBlock[[j]][n, ] <- eval(parse(text = paste("model$Phi.perVar[[j]][[", 1:dblock[j], "]][", n, ", ]",
+                                                        sep = "", collapse = "%x%")))
+    
+    Phi.test.perVar[[j]] <- lapply(1:dblock[j],
+                                   function(k) basisCompute.lineqGP(xtest[, partition[[j]][k]],
+                                                                    model$subdivision[[j]][[k]]))
+    Phi.test.perBlock[[j]] <- matrix(0, nt, prod(mlist[[j]]))
+    for (n in 1:nt)
+      Phi.test.perBlock[[j]][n, ] <- eval(parse(text = paste("Phi.test.perVar[[j]][[", 1:dblock[j], "]][", n, ", ]",
+                                                            sep = "", collapse = "%x%")))
+    
+  }
+    
+  
+
   # # computing the conditional mean vector and conditional covariance matrix
   # # given the interpolation points
-  GammaBlocks <- phiBlocks <- list("vector", nblock)
-  for (j in 1:nblock){
-    phiBlocks[[j]] <- matrix(0, nt, prod(model$localParam$mlist[[j]]))
-    for (iterObs in 1:nt) {
-      hfun <- eval(parse(text = paste("model$Phi[[j]][[", 1:dblock[j], "]][", iterObs, ", ]",
-                                      sep = "", collapse = "%x%")))
-      phiBlocks[[j]][iterObs, ] <- eval(hfun)
-    }
+  bigPhi <- eval(parse(text = paste("cbind(",
+                                    paste("Phi.perBlock[[", 1:nblock, "]]", sep = "", collapse = ","),
+                                    ")", sep = "")))
 
-    hfun <- eval(parse(text = paste("model$Gamma[[j]][[", 1:dblock[j], "]]",
-                                    sep = "", collapse = "%x%")))
-    GammaBlocks[[j]] <- eval(hfun)
-  }
-
-  hfunBigPhi <- parse(text = paste("cbind(",
-                                   paste("phiBlocks[[", 1:nblock, "]]", sep = "", collapse = ","),
-                                   ")", sep = ""))
-  bigPhi <- eval(hfunBigPhi)
-
-  hfunBigGamma <- parse(text = paste("bdiag(",
-                                     paste("GammaBlocks[[", 1:nblock, "]]", sep = "", collapse = ","),
-                                     ")", sep = ""))
-  bigGamma <- eval(hfunBigGamma)
+  bigGamma <- eval(parse(text = paste("bdiag(",
+                                      paste("Gamma.perBlock[[", 1:nblock, "]]", sep = "", collapse = ","),
+                                      ")", sep = "")))
   
-  ##Function to have stable inverse of symetric matrices
-  stable_inv <-function(Sym){
-    cholSym <- lapply(Sym, function(x) chol(x))
-    invSym <- lapply(cholSym, function(x) chol2inv(x))
-  }
+  # ##Function to have stable inverse of symetric matrices
+  # stable_inv <-function(Sym){
+  #   cholSym <- lapply(Sym, function(x) chol(x))
+  #   invSym <- lapply(cholSym, function(x) chol2inv(x))
+  # }
   
-  cholGammaBlocks <- lapply(GammaBlocks, function(x) chol(x))
-  invGammaBlocks <- lapply(cholGammaBlocks, function(x) chol2inv(x))
-  hfunInvBigGamma <- parse(text = paste("bdiag(",
-                                        paste("invGammaBlocks[[", 1:nblock, "]]", sep = "", collapse = ","),
-                                        ")", sep = ""))
-  invBigGamma <- eval(hfunInvBigGamma)
-  invSigmaAll <- as.matrix(invBigGamma) + t(bigPhi)%*%bigPhi/model$varnoise
+  cholGamma.perBlock <- lapply(Gamma.perBlock, function(x) chol(x))
+  invGamma.perBlock <- lapply(cholGamma.perBlock, function(x) chol2inv(x))
+  invBigGamma <- eval(parse(text = paste("bdiag(",
+                                         paste("invGamma.perBlock[[", 1:nblock, "]]", sep = "", collapse = ","),
+                                         ")", sep = "")))
+  invSigma <- as.matrix(invBigGamma) + t(bigPhi)%*%bigPhi/model$varnoise
   
   
 
@@ -459,32 +457,31 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   
   
   ### to be adapted !! ###
-  if (mt < nt) {
-    hfunBigCholGamma <- parse(text = paste("bdiag(",
-                                           paste("cholGammaBlocks[[", 1:nblock, "]]", sep = "", collapse = ","),
-                                           ")", sep = ""))
-    bigCholGamma <- as.matrix(eval(hfunBigCholGamma))
-    PhibigCholGamma <- bigPhi %*% bigCholGamma
-    ILtPhitPhiL <- model$varnoise*diag(mt) + t(PhibigCholGamma) %*% PhibigCholGamma
-    # ILtPhitPhiL <- ILtPhitPhiL + model$nugget*nrow(ILtPhitPhiL)
-    cholILtPhitPhiL <- t(chol(ILtPhitPhiL))
-    Lschur <- forwardsolve(cholILtPhitPhiL, t(PhibigCholGamma))
-    invPhiGammaPhitFull <- (diag(nt) - t(Lschur)%*% Lschur)/model$varnoise
-  } else {
+  # to fix the matrix inversion lemma in the computation of the mean
+  # if (mt < nt) {
+  #   hfunBigCholGamma <- parse(text = paste("bdiag(",
+  #                                          paste("cholGamma.perBlock[[", 1:nblock, "]]", sep = "", collapse = ","),
+  #                                          ")", sep = ""))
+  #   bigCholGamma <- as.matrix(eval(hfunBigCholGamma))
+  #   PhibigCholGamma <- bigPhi %*% bigCholGamma
+  #   ILtPhitPhiL <- model$varnoise*diag(mt) + t(PhibigCholGamma) %*% PhibigCholGamma
+  #   # ILtPhitPhiL <- ILtPhitPhiL + model$nugget*nrow(ILtPhitPhiL)
+  #   cholILtPhitPhiL <- t(chol(ILtPhitPhiL))
+  #   Lschur <- forwardsolve(cholILtPhitPhiL, t(PhibigCholGamma))
+  #   invPhiGammaPhitFull <- (diag(nt) - t(Lschur)%*% Lschur)/model$varnoise
+  # } else {
     PhiGammaPhit <- as.matrix(bigPhi %*% bigGamma %*% t(bigPhi))
     PhiGammaPhit <- PhiGammaPhit + model$nugget*diag(nrow(PhiGammaPhit))
     invPhiGammaPhitFull <- chol2inv(chol(PhiGammaPhit + model$varnoise * diag(nt))) # instability issues here
-  }
-
+  # }
 
   temp <- bigGamma%*%t(bigPhi) %*% invPhiGammaPhitFull
-  muAll <- as.vector(temp %*% model$y)
-  
-  pred$muAll <- muAll #matrix(c(mu), ncol = 1)
-  pred$SigmaAll <- chol2inv(chol(SigmaAll))
+  predMean <- as.vector(temp %*% model$y)
+  pred$mean <- predMean #matrix(c(mu), ncol = 1)
+  pred$Sigma <- chol2inv(chol(Sigma))
 
 
-  xiAll.map <- solve.QP(invSigmaAll, t(pred$muAll) %*% invSigmaAll,
+  xiAll.map <- solve.QP(invSigma, t(predMean) %*% invSigma,
                         t(model$lineqSys$MAll), model$lineqSys$gAll)$solution
   ### to be adapted !! ###
 
