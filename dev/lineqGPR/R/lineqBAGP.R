@@ -5,6 +5,7 @@
 #' @param y a vector with the output data
 #' @param constrType a character string corresponding to the type of the inequality constraint
 #' @param m a scalar or vector corresponding to the number of knots per dimension.
+#' @param partition a list of list making a partion of set $\{1,cdots,D\}$
 #' Options: "boundedness", "monotonicity", "convexity", "linear"
 #' Multiple constraints can be also defined, e.g. \code{constrType = c("boundedness", "monotonicity")}
 #' 
@@ -14,6 +15,7 @@
 #' \item{constrIdx}{for d > 1, a integer vector with the indices of active constrained dimensions}
 #' \item{constrParam}{constraint inequalities for each dimension}
 #' \item{varnoise}{a scalar with noise variance}
+#' \item{subdivision}{a list of list containing sequence of subdivision of segment $[0,1]$}
 #' \item{localParam}{a list with specific parameters required for \code{"lineqBAGP"} models:
 #' \code{m} (number of basis functions), \code{sampler}, and \code{samplingParams}.
 #' See \code{\link{simulate.lineqBAGP}}}
@@ -33,20 +35,22 @@
 #'
 #' @examples
 #' # creating the model
-#' d <- 2
-#' fun1 <- function(x) return(4*(x-0.5)^2)
-#' fun2 <- function(x) return(2*x)
-#' targetFun <- function(x) return(fun1(x[, 1]) + fun1(x[, 2])) 
-#' xgrid <- expand.grid(seq(0, 1, 0.01), seq(0, 1, 0.01))
-#' ygrid <- targetFun(xgrid)
-#' xdesign <- rbind(c(0.5, 0), c(0.5, 0.5), c(0.5, 1), c(0, 0.5), c(1, 0.5))
+#' targetFun <- function(x) {
+#'   return(x[, 1]*x[, 3] + x[, 2])
+#' }
+#' xdesign <- matrix(runif(12), 4, 3)
 #' ydesign <- targetFun(xdesign)
+#' d <- 3 # number of dimensions
+#' nblocks <- 2
 #' model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
-#'                 constrType = c("convexity", "monotonicity"))
+#'                 constrType = rep("monotonicity", nblocks),
+#'                 partition = list(c(1,3), 2),
+#'                 m = c(5, 3, 4))
 #' str(model)
 #' 
 #' @method create lineqBAGP
 #' @export
+
 create.lineqBAGP <- function(x, y, constrType,
                              partition = as.list(seq(ncol(x))),
                              m = NULL) {
@@ -62,7 +66,7 @@ create.lineqBAGP <- function(x, y, constrType,
   
   #biject is a function that take an element 'i' and gives the couple [j,k] 
   #corresponding such that partition[j,k]=i
-  biject <- function(partition, i){
+  bijection <- function(partition, i){
     for (j in 1:length(partition)){
       if (i %in% partition[[j]]){
         return (c(j,which(partition[[j]]==i)))
@@ -70,16 +74,18 @@ create.lineqBAGP <- function(x, y, constrType,
     }
   }
   
-  Bij <-lapply(c(1:3), function(x) biject(partition,x))
+  #Bij <-lapply(c(1:3), function(x) biject(partition,x)) useful?
   
-  ##Creation mlist type : list[seq]
+  #Creation mlist if m.type=list[seq]
   mlist <- lapply(1:nblock, function(x) rep(10, dblock[x]))
   if (length(m)==d){
     for (k in 1:length(m)){
-      pos<-biject(partition, k)
+      pos<-bijection(partition, k)
       mlist[[pos[1]]][pos[2]] <- m[k]
     }
-  }else if (length(m) == 1) {
+  }
+  #Creation mlist if m.type=float
+  else if (length(m) == 1) {
     mlist <- lapply(1:nblock, function(x) rep(m, dblock[x]))
   }
   # else {
@@ -89,11 +95,11 @@ create.lineqBAGP <- function(x, y, constrType,
   # "To see later "
   #### to verify if the partition is a disjoint one and to check that the union is a sequence 1:D ###
   
-  u <- vector("list", nblock)
+  subdivision <- vector("list", nblock)
   for (j in 1:nblock) {
-    u[[j]] <- vector("list", dblock[j])
+    subdivision[[j]] <- vector("list", dblock[j])
     for (k in 1:dblock[j])
-      u[[j]][[k]] <- matrix(seq(0, 1, by = 1/(mlist[[j]][k]-1)), ncol = 1) # discretization vector
+      subdivision[[j]][[k]] <- matrix(seq(0, 1, by = 1/(mlist[[j]][k]-1)), ncol = 1) # discretization vector
   }
   
   
@@ -105,6 +111,9 @@ create.lineqBAGP <- function(x, y, constrType,
   
   
   names(localParam$partition) <- paste('block', 1:localParam$nblock, sep = "")
+  
+  ##Constraints 
+  
   constrFlags <- rep(1, nblock) # to be checked later 
   
   kernParam <- vector("list", localParam$nblock)
@@ -134,7 +143,7 @@ create.lineqBAGP <- function(x, y, constrType,
   }
   constrIdx <- which(constrFlags == 1)
   # creating the full list for the model
-  model <- list(x = x, y = y, constrType = constrType,  ulist = u,
+  model <- list(x = x, y = y, constrType = constrType,  subdivision = subdivision,
                 d = d,  nugget = 1e-9, 
                 constrIdx = constrIdx, constrParam = constrParam,
                 varnoise = 0,  localParam = localParam, kernParam = kernParam)
