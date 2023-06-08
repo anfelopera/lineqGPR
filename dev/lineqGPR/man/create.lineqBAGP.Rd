@@ -13,9 +13,11 @@
 
 \item{constrType}{a character string corresponding to the type of the inequality constraint}
 
-\item{m}{a scalar or vector corresponding to the number of knots per dimension.
+\item{partition}{a list of list making a partion of set $\{1,cdots,D\}$
 Options: "boundedness", "monotonicity", "convexity", "linear"
 Multiple constraints can be also defined, e.g. \code{constrType = c("boundedness", "monotonicity")}}
+
+\item{m}{a scalar or vector corresponding to the number of knots per dimension.}
 }
 \value{
 A list with the following elements.
@@ -24,6 +26,7 @@ A list with the following elements.
 \item{constrIdx}{for d > 1, a integer vector with the indices of active constrained dimensions}
 \item{constrParam}{constraint inequalities for each dimension}
 \item{varnoise}{a scalar with noise variance}
+\item{subdivision}{a list of list containing sequence of subdivision of segment $[0,1]$}
 \item{localParam}{a list with specific parameters required for \code{"lineqBAGP"} models:
 \code{m} (number of basis functions), \code{sampler}, and \code{samplingParams}.
 See \code{\link{simulate.lineqBAGP}}}
@@ -37,16 +40,17 @@ Creation method for the \code{"lineqBAGP"} S3 class.
 }
 \examples{
 # creating the model
-d <- 2
-fun1 <- function(x) return(4*(x-0.5)^2)
-fun2 <- function(x) return(2*x)
-targetFun <- function(x) return(fun1(x[, 1]) + fun1(x[, 2])) 
-xgrid <- expand.grid(seq(0, 1, 0.01), seq(0, 1, 0.01))
-ygrid <- targetFun(xgrid)
-xdesign <- rbind(c(0.5, 0), c(0.5, 0.5), c(0.5, 1), c(0, 0.5), c(1, 0.5))
+targetFun <- function(x) {
+  return(x[, 1]*x[, 3] + x[, 2])
+}
+xdesign <- matrix(runif(12), 4, 3)
 ydesign <- targetFun(xdesign)
+d <- 3 # number of dimensions
+nblocks <- 2
 model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
-                constrType = c("convexity", "monotonicity"))
+                constrType = rep("monotonicity", nblocks),
+                partition = list(c(1,3), 2),
+                m = c(5, 3, 4))
 str(model)
 
 }
