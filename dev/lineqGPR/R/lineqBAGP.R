@@ -442,6 +442,7 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
     cholSym <- lapply(Sym, function(x) chol(x))
     invSym <- lapply(cholSym, function(x) chol2inv(x))
   }
+  
   cholGammaBlocks <- lapply(GammaBlocks, function(x) chol(x))
   invGammaBlocks <- lapply(cholGammaBlocks, function(x) chol2inv(x))
   hfunInvBigGamma <- parse(text = paste("bdiag(",
