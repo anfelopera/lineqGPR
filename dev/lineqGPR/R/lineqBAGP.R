@@ -398,7 +398,7 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
     Phi.test[[j]] <- vector("list", dblock[j])
     for (k in 1:dblock[j]) {
       Phi.test[[j]][[k]] <- basisCompute.lineqGP(xtest[, model$localParam$partition[[j]][k]],
-                                                 model$ulist[[j]][[k]])
+                                                 model$subdivision[[j]][[k]])
     }
   }
   pred$Phi.test <- Phi.test
@@ -415,28 +415,34 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   # # computing the conditional mean vector and conditional covariance matrix
   # # given the interpolation points
   GammaBlocks <- phiBlocks <- list("vector", nblock)
-  for (j in 1:nblock) {
+  for (j in 1:nblock){
     phiBlocks[[j]] <- matrix(0, nt, prod(model$localParam$mlist[[j]]))
     for (iterObs in 1:nt) {
       hfun <- eval(parse(text = paste("model$Phi[[j]][[", 1:dblock[j], "]][", iterObs, ", ]",
                                       sep = "", collapse = "%x%")))
       phiBlocks[[j]][iterObs, ] <- eval(hfun)
     }
-    
+
     hfun <- eval(parse(text = paste("model$Gamma[[j]][[", 1:dblock[j], "]]",
                                     sep = "", collapse = "%x%")))
     GammaBlocks[[j]] <- eval(hfun)
   }
-  
+
   hfunBigPhi <- parse(text = paste("cbind(",
                                    paste("phiBlocks[[", 1:nblock, "]]", sep = "", collapse = ","),
                                    ")", sep = ""))
   bigPhi <- eval(hfunBigPhi)
-  
+
   hfunBigGamma <- parse(text = paste("bdiag(",
                                      paste("GammaBlocks[[", 1:nblock, "]]", sep = "", collapse = ","),
                                      ")", sep = ""))
   bigGamma <- eval(hfunBigGamma)
+  
+  ##Function to have stable inverse of symetric matrices
+  stable_inv <-function(Sym){
+    cholSym <- lapply(Sym, function(x) chol(x))
+    invSym <- lapply(cholSym, function(x) chol2inv(x))
+  }
   
   cholGammaBlocks <- lapply(GammaBlocks, function(x) chol(x))
   invGammaBlocks <- lapply(cholGammaBlocks, function(x) chol2inv(x))
@@ -445,6 +451,11 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
                                         ")", sep = ""))
   invBigGamma <- eval(hfunInvBigGamma)
   invSigmaAll <- as.matrix(invBigGamma) + t(bigPhi)%*%bigPhi/model$varnoise
+  
+  
+
+  
+  
   
   
   ### to be adapted !! ###
@@ -464,31 +475,27 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
     PhiGammaPhit <- PhiGammaPhit + model$nugget*diag(nrow(PhiGammaPhit))
     invPhiGammaPhitFull <- chol2inv(chol(PhiGammaPhit + model$varnoise * diag(nt))) # instability issues here
   }
-  
+
 
   temp <- bigGamma%*%t(bigPhi) %*% invPhiGammaPhitFull
   muAll <- as.vector(temp %*% model$y)
   
-  plot(ydesign, bigPhi%*%muAll)
-  
-  pred$mu <- mu
-  pred$Sigma <- Sigma
   pred$muAll <- muAll #matrix(c(mu), ncol = 1)
-  pred$SigmaAll <- SigmaAll
-  
-  
+  pred$SigmaAll <- chol2inv(chol(SigmaAll))
+
+
   xiAll.map <- solve.QP(invSigmaAll, t(pred$muAll) %*% invSigmaAll,
                         t(model$lineqSys$MAll), model$lineqSys$gAll)$solution
   ### to be adapted !! ###
-  
-  
+
+
   pred$xiAll.map <- xiAll.map
-  
+
   pred$xi.map <- vector("list", nblock)
   for (k in 1:nblock) {
     pred$xi.map[[k]] <- xiAll.map[(mlist[k]+1):mlist[k+1]]
   }
-  
+
   if (return_model)
     pred$model <- model
   return(pred)
