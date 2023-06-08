@@ -48,3 +48,8 @@
 3. Be sure the automatic tests and demos are validated before merging 
 
 **Note:** This procedure must be followed in order to have a track of the changes in the master and allow peer code review
+
+## Just in case:
+- git reset --hard <commit_code>
+- git push origin <your_branch_name> --force
+- git branch --delete <branch_name>
