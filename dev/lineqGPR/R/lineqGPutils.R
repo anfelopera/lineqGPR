@@ -543,3 +543,33 @@ ggplot.lineqGP <- function(data, mapping, ytest = NULL,
 #' @export
 plot.lineqAGP <- function(x, y, ...)
   plot.lineqGP(x, y, ...)
+
+#' @title List of blocks
+#' @description Create a list according to a given a partition of set $\{1,cdots,D\}$.
+#' 
+#' @param partition a list containing a partition of set $\{1,cdots,D\}$
+#'
+#' @return a list structure according to the partition.
+#'          
+#' @author A. F. Lopez-Lopera
+#'
+#' @examples
+#' partition <- list(c(1,3), 2)
+#' listBlocks(partition)
+#' @export
+listBlocks <- function(partition) {
+  nblocks <- length(partition)
+  dblock <- sapply(partition, length)
+  object <- vector("list", nblocks)
+  names(object) <- paste("block", 1:nblocks, sep = "")
+  
+  for (j in 1:nblocks) {
+    object[[j]] <- vector("list", dblock[j])
+    names(object[[j]]) <- paste("x", partition[[j]], sep = "")
+  }
+  return(object)
+}
+
+
+
+
