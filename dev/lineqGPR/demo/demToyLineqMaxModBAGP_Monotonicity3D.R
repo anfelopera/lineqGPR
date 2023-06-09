@@ -8,33 +8,37 @@ rm(list=ls())
 set.seed(7)
 
 #### Synthetic data ####
-targetFun <- function(x) {
-  return(x[, 1]*x[, 3] + x[, 2])
-}
 d <- 3 # number of active input variables
+partition <- list(c(1,3), 2)
+nblock <- length(partition)
 
-# building DoE in dimension D via Latin hypercube sampling (LHS)
-nbtrain <- 3*d
-xdesign <- lhsDesign(nbtrain, d, seed = 8)$design
+targetFun <- function(x, partition) {
+  return(x[, partition[[1]][1]]*x[, partition[[1]][2]] + x[, partition[[2]][1]])
+}
+
+# building Latin hypercube sampling (LHS) design 
+nbtrain <- 4*d
+xdesign <- lhsDesign(nbtrain, d, seed = 0)$design
 xdesign <- maximinSA_LHS(xdesign)$design
-ydesign <- targetFun(xdesign)
 
-# building a DoE for assessing the model
-# ntest <- 40*d
-# xtest <- lhsDesign(ntest, d, seed = 8)$design
-# xtest <- maximinSA_LHS(xtest)$design
+# adding extra training points with second block's variable = 0
+nbextra <- 4
+xdesign2 <- matrix(0, nbextra, d)
+xdesign2[, partition[[1]]] <- maximinSA_LHS(lhsDesign(nbextra, 2, seed = 0)$design)$design
+xdesign <- rbind(xdesign, xdesign2)
+ydesign <- targetFun(xdesign, partition)
 
-xbase <- seq(0, 1, length = 10)
+# defining the 3D grid for predictions 
+n1D <- 20
+xbase <- seq(0, 1, length = n1D)
 xtest <- as.matrix(expand.grid(xbase, xbase, xbase))
-ytest <- targetFun(xtest)
-
+ytest <- targetFun(xtest, partition)
 
 #### Constrained model ####
 # creating the model
-nblock <- 2
 model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
                 constrType = rep("monotonicity", nblock), 
-                partition = list(c(1,3), 2),
+                partition = partition,
                 m = c(5, 3, 4))
 
 for (k in 1:nblock)
@@ -46,8 +50,45 @@ model$varnoise <- 0.05*sd(ydesign)^2
 
 model_test <- augment(model)
 pred <- predict(model, xtest)
-model.sim <- simulate(model, 10, seed = 1, xtest)
+model.sim <- simulate(model, 1e3, seed = 1, xtest)
 
+plot(ytest, pred$y.mean)
+plot(ytest, pred$y.mode)
+plot(ytest, model.sim$y.sim[, 1])
+plot(ytest, model.sim$y.sim[, 10])
+plot(ytest, model.sim$y.sim[, 99])
+
+
+colormap <- rev(viridis(1e2))
+par(mfrow = c(2,2), mar=c(1.5,1.5,1.5,1))
+p <- persp3D(x = xbase, y = xbase,
+             z = matrix(ytest[which(xtest[,2] == 0)], n1D, n1D),
+             xlab = paste("x", partition[[1]][1], sep = ""), ylab = paste("x", partition[[1]][2], sep = ""), #zlab = "y(x1,x3)",
+             main = "Target function", phi = 20, theta = -30, col = colormap, colkey = FALSE)
+idxProj <- which(xdesign[,2] < 0.1)
+points3D(xdesign[idxProj, partition[[1]][1]],
+         xdesign[idxProj, partition[[1]][2]], ydesign[idxProj], pch = 20, cex = 2,  col = "black", add = TRUE)
+
+p <- persp3D(x = xbase, y = xbase,
+             z = matrix(pred$y.mean[which(xtest[,2] == 0)], n1D, n1D),
+             xlab = paste("x", partition[[1]][1], sep = ""), ylab = paste("x", partition[[1]][2], sep = ""), # zlab = "y(x1,x3)",
+             main = "Unconstrained predictive mean", phi = 20, theta = -30, col = colormap, colkey = FALSE)
+points3D(xdesign[idxProj, partition[[1]][1]],
+         xdesign[idxProj, partition[[1]][2]], ydesign[idxProj], pch = 20, cex = 2,  col = "black", add = TRUE)
+
+p <- persp3D(x = xbase, y = xbase,
+             z = matrix(pred$y.mode[which(xtest[,2] == 0)], n1D, n1D),
+             xlab = paste("x", partition[[1]][1], sep = ""), ylab = paste("x", partition[[1]][2], sep = ""), # zlab = "y(x1,x3)",
+             main = "Constrained Mode", phi = 20, theta = -30, col = colormap, colkey = FALSE)
+points3D(xdesign[idxProj, partition[[1]][1]],
+         xdesign[idxProj, partition[[1]][2]], ydesign[idxProj], pch = 20, cex = 2,  col = "black", add = TRUE)
+
+p <- persp3D(x = xbase, y = xbase,
+             z = matrix(rowMeans(model.sim$y.sim)[which(xtest[,2] == 0)], n1D, n1D),
+             xlab = paste("x", partition[[1]][1], sep = ""), ylab = paste("x", partition[[1]][2], sep = ""), # zlab = "y(x1,x3)",
+             main = "Constrained HMC Mean ", phi = 20, theta = -30, col = colormap, colkey = FALSE)
+points3D(xdesign[idxProj, partition[[1]][1]],
+         xdesign[idxProj, partition[[1]][2]], ydesign[idxProj], pch = 20, cex = 2,  col = "black", add = TRUE)
 
 # model_temp <- lineqGPOptim(model,
 #                            additive = TRUE,
@@ -70,48 +111,3 @@ model.sim <- simulate(model, 10, seed = 1, xtest)
 # message("\nNumber of active dimensions: ", d)
 # message("Number of actived dimensions via MaxMod: ", model$d, "\n")
 # idxAdd <- unique(model$MaxMod$optDecision)
-
-# ntest <- 10
-# xtestGrid  <- as.matrix(expand.grid(seq(0, 1, length = ntest), seq(0, 1, length = ntest)))
-# 
-# pred <- predict(model, xtestGrid)
-# model$localParam$sampler <- "HMC"
-# sim.model <- simulate(model, nsim = 1e2, xtest = xtestGrid)
-# 
-# u <- expand.grid(model$ulist[[1]], model$ulist[[2]])
-# pred_Knots <- predict(model, as.matrix(u))
-# PhiAllknots.test <- cbind(pred_Knots$Phi.test[[1]][rep(1:model$localParam$m[1], times = model$localParam$m[2]), ],
-#                           pred_Knots$Phi.test[[2]][rep(1:model$localParam$m[2], each = model$localParam$m[1]), ])
-# 
-# colormap <- rev(viridis(1e2))
-# par(mfrow = c(2,2), mar=c(1.5,1.5,1.5,1))
-# p <- persp3D(x = unique(xtestGrid[, idxAdd[1]]), y = unique(xtestGrid[, idxAdd[2]]),
-#              z = matrix(targetFun(cbind(xtestGrid[, idxAdd], 1), d), ntest, ntest),
-#              xlab = paste("x", idxAdd[1], sep = ""), ylab = paste("x", idxAdd[2], sep = ""), zlab = "y(x1,x2)",
-#              main = "Target function", phi = 20, theta = -30, col = colormap, colkey = FALSE)
-# points3D(xdesign[,idxAdd[1]], xdesign[,idxAdd[2]], ydesign, pch = 20, cex = 2,  col = "black", add = TRUE)
-# 
-# p <- persp3D(x = unique(xtestGrid[, 1]), y = unique(xtestGrid[, 2]),
-#              z = matrix(pred$PhiAll.test %*% pred$xiAll.map, ntest, ntest),
-#              xlab = paste("x", idxAdd[1], sep = ""), ylab = paste("x", idxAdd[2], sep = ""), zlab = "y(x1,x2)",
-#              main = "MAP solution", phi = 20, theta = -30, col = colormap, colkey = FALSE)
-# points3D(xdesign[,idxAdd[1]], xdesign[,idxAdd[2]], ydesign, pch = 20, cex = 2,  col = "black", add = TRUE)
-# points(trans3D(x = u[,1], y = u[,2], z = pred_Knots$PhiAll.test %*% pred_Knots$xiAll.map, pmat = p),
-#        col = 'brown', pch = 4, lwd = 2)
-# 
-# p <- persp3D(x = unique(xtestGrid[, 1]), y = unique(xtestGrid[, 2]),
-#              z = matrix(rowMeans(sim.model$PhiAll.test %*% sim.model$xiAll.sim), ntest, ntest),
-#              xlab = paste("x", idxAdd[1], sep = ""), ylab = paste("x", idxAdd[2], sep = ""), zlab = "y(x1,x2)",
-#              main = "MCMC solution", phi = 20, theta = -30, col = colormap, colkey = FALSE)
-# points3D(xdesign[,idxAdd[1]], xdesign[,idxAdd[2]], ydesign, pch = 20, cex = 2,  col = "black", add = TRUE)
-# points(trans3D(x = u[,1], y = u[,2], z = pred_Knots$PhiAll.test %*% pred_Knots$xiAll.map, pmat = p),
-#        col = 'brown', pch = 4, lwd = 2)
-# 
-# p <- persp3D(x = unique(xtestGrid[, 1]), y = unique(xtestGrid[, 2]),
-#              z = matrix(sim.model$PhiAll.test %*% sim.model$xiAll.sim[,1], ntest, ntest),
-#              xlab = paste("x", idxAdd[1], sep = ""), ylab = paste("x", idxAdd[2], sep = ""), zlab = "y(x1,x2)",
-#              main = "MCMC sample", phi = 20, theta = -30, col = colormap, colkey = FALSE)
-# points3D(xdesign[,idxAdd[1]], xdesign[,idxAdd[2]], ydesign, pch = 20, cex = 2,  col = "black", add = TRUE)
-# points(trans3D(x = u[,1], y = u[,2], z = pred_Knots$PhiAll.test %*% pred_Knots$xiAll.map, pmat = p),
-#        col = 'brown', pch = 4, lwd = 2)
-# 

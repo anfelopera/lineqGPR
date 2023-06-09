@@ -239,8 +239,9 @@ augment.lineqBAGP<- function(x, ...) {
   model$Phi.perVar <- Phi.perVar
   
   # precomputing the linear system for the QP solver and MCMC samplers
-  M.perBlock <- g.perBlock <- m.perBlock <- vector("list", nblock)
-  names(M.perBlock) <- names(g.perBlock) <- names(m.perBlock) <- paste("x", 1:nblock, sep = "")
+  M.perBlock <- g.perBlock <- vector("list", nblock)
+  m.perBlock <- rep(0, nblock)
+  names(M.perBlock) <- names(g.perBlock) <- names(m.perBlock) <- paste("block", 1:nblock, sep = "")
   for (j in 1:nblock) {
     if (model$constrType[j] == "linear") { #to be checked!
       if (!("Lambda" %in% names(model)))
@@ -272,12 +273,12 @@ augment.lineqBAGP<- function(x, ...) {
     # twosides linear structure (Lambda, lb, ub) for MCMC samplers
     
     # extra term required for HMC sampler
-    m.perBlock[[j]] <- nrow(lsys2$A)
+    m.perBlock[j] <- nrow(lsys2$A)
   }
   # adding the parameters to the model structure
   model$lineqSys$M.perBlock <- M.perBlock # for QP solve
   model$lineqSys$g.perBlock <- g.perBlock # for QP solve
-  model$localParam$m.perblock <- m.perBlock # for HMC sampler
+  model$localParam$m.perBlock <- m.perBlock # for HMC sampler
 
   model$lineqSys$M <- eval(parse(text = paste("bdiag(",
                                               paste("M.perBlock[[", 1:nblock, "]]", sep = "", collapse = ","),
@@ -426,12 +427,12 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
 
   # # computing the conditional mean vector and conditional covariance matrix
   # # given the interpolation points
-  bigPhi <- eval(parse(text = paste("cbind(",
+  pred$bigPhi <- bigPhi <- eval(parse(text = paste("cbind(",
                                     paste("Phi.perBlock[[", 1:nblock, "]]", sep = "", collapse = ","),
                                     ")", sep = "")))
-  bigPhi.test <- eval(parse(text = paste("cbind(",
-                                         paste("Phi.test.perBlock[[", 1:nblock, "]]", sep = "", collapse = ","),
-                                    ")", sep = "")))
+  pred$bigPhi.test <- eval(parse(text = paste("cbind(",
+                                              paste("Phi.test.perBlock[[", 1:nblock, "]]", sep = "", collapse = ","),
+                                              ")", sep = "")))
   
   bigGamma <- eval(parse(text = paste("bdiag(",
                                       paste("Gamma.perBlock[[", 1:nblock, "]]", sep = "", collapse = ","),
@@ -478,8 +479,8 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   pred$xi.mode <- solve.QP(invSigma, t(pred$xi.mean) %*% invSigma,
                            t(model$lineqSys$M), model$lineqSys$g)$solution
   
-  pred$y.mean <- bigPhi.test %*% pred$xi.mean
-  pred$y.mode <- bigPhi.test %*% pred$xi.mode
+  pred$y.mean <- pred$bigPhi.test %*% pred$xi.mean
+  pred$y.mode <- pred$bigPhi.test %*% pred$xi.mode
 
   if (return_model)
     pred$model <- model
@@ -571,24 +572,24 @@ simulate.lineqBAGP <- function(object, nsim = 1, seed = NULL, xtest, ...) {
   
   nblock <- model$localParam$nblock
   
-  etaAll.map <- as.vector(model$lineqSys$Lambda %*% pred$xiAll.map)
-  Sigma.etaAll <- model$lineqSys$Lambda %*% pred$Sigma %*% t(model$lineqSys$Lambda)
-  Sigma.etaAll <- Sigma.etaAll + model$nugget*diag(nrow(Sigma.etaAll))
+  eta.mode <- as.vector(model$lineqSys$Lambda %*% pred$xi.mode)
+  Sigma.eta <- model$lineqSys$Lambda %*% pred$Sigma %*% t(model$lineqSys$Lambda)
+  Sigma.eta <- Sigma.eta + model$nugget*diag(nrow(Sigma.eta))
   
   # listing control terms
   control <- as.list(unlist(model$localParam$samplingParam))
-  control$mvec <- model$localParam$mtotal # for HMC
+  control$mvec <- sum(model$localParam$m.perBlock) # for HMC
   control$constrType <- model$constrType # for HMC
   
-  tmvPar <- list(mu = etaAll.map, Sigma = Sigma.etaAll,
+  tmvPar <- list(mu = eta.mode, Sigma = Sigma.eta,
                  lb = model$lineqSys$lb,
                  ub = model$lineqSys$ub)
   class(tmvPar) <- model$localParam$sampler
   set.seed(seed)
   simtime <- proc.time()
-  etaAll <- tmvrnorm(tmvPar, nsim, control)
+  eta.sim <- tmvrnorm(tmvPar, nsim, control)
   simtime <- proc.time() - simtime
-  xiAll.sim <- qr.solve(model$lineqSys$Lambda, etaAll)
+  xi.sim <- qr.solve(model$lineqSys$Lambda, eta.sim)
   
   # passing some terms to the simulated model
   simModel <- list()
@@ -602,10 +603,13 @@ simulate.lineqBAGP <- function(object, nsim = 1, seed = NULL, xtest, ...) {
   simModel$predtime <- predtime
   simModel$simtime <- simtime
   
-  simModel$muAll <- pred$muAll
-  simModel$xiAll.map <- pred$xiAll.map
-  simModel$xiAll.sim <- xiAll.sim
-  simModel$PhiAll.test <- pred$PhiAll.test
+  simModel$xi.mean <- pred$xi.mean
+  simModel$xi.mode <- pred$xi.mode
+  simModel$y.mean <- pred$y.mean
+  simModel$y.mode <- pred$y.mode
+  simModel$xi.sim <- xi.sim
+  simModel$y.sim <- pred$bigPhi.test %*% xi.sim
+  # simModel$PhiAll.test <- pred$PhiAll.test
   
   class(simModel) <- class(model)
   return(simModel)
