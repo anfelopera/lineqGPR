@@ -460,21 +460,20 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   #   Lschur <- forwardsolve(cholILtPhitPhiL, t(PhicholGamma))
   #   invPhiGammaPhitFull <- (diag(nt) - t(Lschur)%*% Lschur)/model$varnoise
   # } else {
-    PhiGammaPhit.perBlock <- lapply(1:nblock, function(j) Phi.perBlock[[j]]%*%Gamma.perBlock[[j]]%*%t(Phi.perBlock[[j]]))
+    GammaPhit.perBlock <- lapply(1:nblock, function(j) Gamma.perBlock[[j]]%*%t(Phi.perBlock[[j]]))
+    GammaPhit <- eval(parse(text = paste("rbind(", paste("GammaPhit.perBlock[[", 1:nblock, "]]", sep = "", collapse = ","), ")")))
+    PhiGammaPhit.perBlock <- lapply(1:nblock, function(j) Phi.perBlock[[j]]%*%GammaPhit.perBlock[[j]])
     PhiGammaPhit <- eval(parse(text = paste("PhiGammaPhit.perBlock[[", 1:nblock, "]]", sep = "", collapse = "+")))
-    # PhiGammaPhit <- as.matrix(bigPhi %*% bigGamma %*% t(bigPhi))
     PhiGammaPhit <- PhiGammaPhit + model$nugget*diag(nrow(PhiGammaPhit))
-    invPhiGammaPhitFull <- chol2inv(chol(PhiGammaPhit + model$varnoise * diag(nt))) # instability issues here
+    invPhiGammaPhitFull <- chol2inv(chol(PhiGammaPhit + model$varnoise*diag(nrow(PhiGammaPhit)))) # instability issues here
   # }
 
-  temp <- bigGamma%*%t(bigPhi) %*% invPhiGammaPhitFull
-  predMean <- as.vector(temp %*% model$y)
-  pred$mean <- predMean #matrix(c(mu), ncol = 1)
-  pred$Sigma <- chol2inv(chol(invSigma))
+  pred$xi.mean <- as.vector(GammaPhit %*% invPhiGammaPhitFull %*% model$y)
+  pred$Sigma <- bigGamma - GammaPhit %*% invPhiGammaPhitFull %*% t(GammaPhit)
+  # pred$Sigma <- chol2inv(chol(invSigma))
 
-
-  pred$mode <- solve.QP(invSigma, t(predMean) %*% invSigma,
-                        t(model$lineqSys$M), model$lineqSys$g)$solution
+  pred$xi.mode <- solve.QP(invSigma, t(pred$xi.mean) %*% invSigma,
+                           t(model$lineqSys$M), model$lineqSys$g)$solution
 
   if (return_model)
     pred$model <- model
@@ -565,34 +564,6 @@ simulate.lineqBAGP <- function(object, nsim = 1, seed = NULL, xtest, ...) {
   pred$model <- NULL
   
   nblock <- model$localParam$nblock
-  
-  # # computing the transformed conditional mode and covariance matrix given
-  # # the interpolation points and the inequality constraints
-  # ysim <- xi.sim <- vector("list", nblock)
-  # simtime <- proc.time()
-  # for (k in 1:nblock) {
-  #   Lambda <- pred$constrParam[[k]]$Lambda
-  #   eta.map <- as.vector(Lambda %*% pred$xi.map[[k]])
-  #   Sigma.eta <- Lambda %*% pred$Sigma[[k]] %*% t(Lambda)
-  #   if (min(eigen(Sigma.eta, symmetric = TRUE)$values) < 0)
-  #     Sigma.eta <- Sigma.eta + model$nugget*diag(nrow(Sigma.eta))
-  #   
-  #   # listing control terms
-  #   control <- as.list(unlist(model$localParam$samplingParam))
-  #   control$mvec <- model$localParam$mvec[[k]] # for HMC
-  #   control$constrType <- model$constrType[k] # for HMC
-  #   
-  #   # sampling from the truncated multinormal
-  #   tmvPar <- list(mu = eta.map, Sigma = Sigma.eta,
-  #                  lb = pred$constrParam[[k]]$lb,
-  #                  ub = pred$constrParam[[k]]$ub)
-  #   class(tmvPar) <- model$localParam$sampler
-  #   set.seed(seed)
-  #   eta <- tmvrnorm(tmvPar, nsim, control)
-  #   xi.sim[[k]] <- qr.solve(Lambda, eta)
-  #   ysim[[k]] <- pred$Phi.test[[k]] %*% xi.sim[[k]]
-  # }
-  # simtime <- proc.time() - simtime
   
   etaAll.map <- as.vector(model$lineqSys$Lambda %*% pred$xiAll.map)
   Sigma.etaAll <- model$lineqSys$Lambda %*% pred$Sigma %*% t(model$lineqSys$Lambda)
