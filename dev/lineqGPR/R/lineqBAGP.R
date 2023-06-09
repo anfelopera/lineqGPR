@@ -448,20 +448,21 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   invSigma <- as.matrix(invBigGamma) + t(bigPhi)%*%bigPhi/model$varnoise
   
   ### to be adapted !! ###
-  # to fix the matrix inversion lemma in the computation of the mean
+  ## to fix the matrix inversion lemma in the computation of the mean
   # if (mt < nt) {
-  #   hfunBigCholGamma <- parse(text = paste("bdiag(",
-  #                                          paste("cholGamma.perBlock[[", 1:nblock, "]]", sep = "", collapse = ","),
-  #                                          ")", sep = ""))
-  #   bigCholGamma <- as.matrix(eval(hfunBigCholGamma))
-  #   PhibigCholGamma <- bigPhi %*% bigCholGamma
-  #   ILtPhitPhiL <- model$varnoise*diag(mt) + t(PhibigCholGamma) %*% PhibigCholGamma
+  #   PhicholGamma.perBlock <- lapply(1:nblock, function(j) Phi.perBlock[[j]]%*%cholGamma.perBlock[[j]])
+  #   PhicholGamma <- eval(parse(text = paste("cbind(", paste("PhicholGamma.perBlock[[", 1:nblock, "]]",
+  #                                                           sep = "", collapse = ","), ")", sep = "")))
+  #   ILtPhitPhiL <- model$varnoise*diag(mt) + t(PhicholGamma) %*% PhicholGamma
+  #   
   #   # ILtPhitPhiL <- ILtPhitPhiL + model$nugget*nrow(ILtPhitPhiL)
   #   cholILtPhitPhiL <- t(chol(ILtPhitPhiL))
-  #   Lschur <- forwardsolve(cholILtPhitPhiL, t(PhibigCholGamma))
+  #   Lschur <- forwardsolve(cholILtPhitPhiL, t(PhicholGamma))
   #   invPhiGammaPhitFull <- (diag(nt) - t(Lschur)%*% Lschur)/model$varnoise
   # } else {
-    PhiGammaPhit <- as.matrix(bigPhi %*% bigGamma %*% t(bigPhi))
+    PhiGammaPhit.perBlock <- lapply(1:nblock, function(j) Phi.perBlock[[j]]%*%Gamma.perBlock[[j]]%*%t(Phi.perBlock[[j]]))
+    PhiGammaPhit <- eval(parse(text = paste("PhiGammaPhit.perBlock[[", 1:nblock, "]]", sep = "", collapse = "+")))
+    # PhiGammaPhit <- as.matrix(bigPhi %*% bigGamma %*% t(bigPhi))
     PhiGammaPhit <- PhiGammaPhit + model$nugget*diag(nrow(PhiGammaPhit))
     invPhiGammaPhitFull <- chol2inv(chol(PhiGammaPhit + model$varnoise * diag(nt))) # instability issues here
   # }
