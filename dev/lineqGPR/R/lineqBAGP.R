@@ -429,7 +429,10 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   bigPhi <- eval(parse(text = paste("cbind(",
                                     paste("Phi.perBlock[[", 1:nblock, "]]", sep = "", collapse = ","),
                                     ")", sep = "")))
-
+  bigPhi.test <- eval(parse(text = paste("cbind(",
+                                         paste("Phi.test.perBlock[[", 1:nblock, "]]", sep = "", collapse = ","),
+                                    ")", sep = "")))
+  
   bigGamma <- eval(parse(text = paste("bdiag(",
                                       paste("Gamma.perBlock[[", 1:nblock, "]]", sep = "", collapse = ","),
                                       ")", sep = "")))
@@ -474,6 +477,9 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
 
   pred$xi.mode <- solve.QP(invSigma, t(pred$xi.mean) %*% invSigma,
                            t(model$lineqSys$M), model$lineqSys$g)$solution
+  
+  pred$y.mean <- bigPhi.test %*% pred$xi.mean
+  pred$y.mode <- bigPhi.test %*% pred$xi.mode
 
   if (return_model)
     pred$model <- model
