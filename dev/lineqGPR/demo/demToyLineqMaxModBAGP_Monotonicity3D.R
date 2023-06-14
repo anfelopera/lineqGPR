@@ -42,7 +42,7 @@ model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
                 m = c(5, 3, 4))
 
 for (k in 1:nblock)
-  model$kernParam[[k]]$par <- c(1, rep(0.1, model$localParam$dblock[k]))
+  model$kernParam[[k]]$par <- c(1, rep(0.1, model$localParam$dim_block[k]))
 
 model$localParam$sampler <- "HMC"
 model$nugget <- 1e-5

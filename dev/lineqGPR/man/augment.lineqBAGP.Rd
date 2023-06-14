@@ -13,9 +13,12 @@
 }
 \value{
 An expanded \code{"lineqGP"} object with the following additional elements
+
 \item{Phi}{a matrix corresponding to the hat basis functions.
 The basis functions are indexed by rows}
-\item{Gamma}{the covariance matrix of the Gassian vector \eqn{\boldsymbol{\xi}}{\xi}.}
+\item{kernel$Param an object indicating for each variable the associated kernel} #will evolve
+\item{Gamma.var}{a list of list of matrix where Gamma.var[[j]][[k]][i] is 
+the covariance matrix of the 1D GP with kernel kernel$Param[[j]][[k]] for the points $x^{(1)}_{\sigma(i)},..., x^{n}_{\sigma(i)}}$.
 \item{(Lambda,lb,ub)}{the linear system of inequalities.}
 \item{...}{further parameters passed to or from other methods.}
 }

@@ -7,17 +7,33 @@
 \method{create}{lineqBAGP}(x, y, constrType, partition = as.list(seq(ncol(x))), m = NULL)
 }
 \arguments{
-\item{x}{a vector or matrix with the input data. The dimensions should be indexed by columns}
+\item{x}{float supposed to be a real number in $[0,1]$}
 
 \item{y}{a vector with the output data}
 
 \item{constrType}{a character string corresponding to the type of the inequality constraint}
 
-\item{partition}{a list of list making a partion of set $\{1,cdots,D\}$
-Options: "boundedness", "monotonicity", "convexity", "linear"
-Multiple constraints can be also defined, e.g. \code{constrType = c("boundedness", "monotonicity")}}
+\item{partition}{a list of list making a partion of set $\{1,cdots,D\}$}
 
 \item{m}{a scalar or vector corresponding to the number of knots per dimension.}
+
+\item{subdivision}{:list[list[seq]] The subdivisions for each axe subdivision[[j]][[k]]}
+
+\item{subdivision_taille}{list[seq] subdivision_size[[j]][k] =length(subdivision[[j]][[k]])}
+
+\item{dim_block}{:seq, the size of the blocks, dim_block[j]=length(partition[[j]])
+will give the subdivision of $[0,1]$ for the variable partition[[j]][[k]]}
+
+\item{X}{matrix such that X[,i] is an observation $x^{(i)}$}
+
+\item{Y}{the vector of observation Y[i]=f(X[,i])}
+
+\item{A, B}{list["vector"] Matrices per block of type}
+
+\item{d}{a number corresponding to the dimension of the input space.
+
+Options: "boundedness", "monotonicity", "convexity", "linear"
+Multiple constraints can be also defined, e.g. \code{constrType = c("boundedness", "monotonicity")}}
 }
 \value{
 A list with the following elements.
