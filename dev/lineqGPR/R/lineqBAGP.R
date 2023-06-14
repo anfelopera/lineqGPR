@@ -6,6 +6,16 @@
 #' @param constrType a character string corresponding to the type of the inequality constraint
 #' @param m a scalar or vector corresponding to the number of knots per dimension.
 #' @param partition a list of list making a partion of set $\{1,cdots,D\}$
+#' @param subdivision :list[list[seq]] The subdivisions for each axe subdivision[[j]][[k]]
+#' @param subdivision_taille list[seq] subdivision_size[[j]][k] =length(subdivision[[j]][[k]])
+#' @param dim_block :seq, the size of the blocks, dim_block[j]=length(partition[[j]])
+#'  will give the subdivision of $[0,1]$ for the variable partition[[j]][[k]]    
+#' @param X matrix such that X[,i] is an observation $x^{(i)}$
+#' @param x float supposed to be a real number in $[0,1]$
+#' @param Y the vector of observation Y[i]=f(X[,i]) 
+#' @param A,B list["vector"] Matrices per block of type 
+#' @param d a number corresponding to the dimension of the input space.
+#' 
 #' Options: "boundedness", "monotonicity", "convexity", "linear"
 #' Multiple constraints can be also defined, e.g. \code{constrType = c("boundedness", "monotonicity")}
 #' 
@@ -62,50 +72,22 @@ create.lineqBAGP <- function(x, y, constrType,
   
   d <- ncol(x) # dimension of the input space
   nblock <- length(partition) # nb of blocks
-  dblock <- sapply(partition, function(x) length(x))
+  dim_block <- sapply(partition, function(x) length(x))
   
-  # bijection is a function that take an element 'i' and gives the couple [j,k] 
-  # corresponding such that partition[j,k]=i
-  bijection <- function(partition, i) {
-    for (j in 1:length(partition)) {
-      if (i %in% partition[[j]]) {
-        return (c(j, which(partition[[j]] == i)))
-      }
-    }
-  }
-  
-  #Bij <-lapply(c(1:3), function(x) biject(partition,x)) useful?
-  
-  #Creation mlist if m.type=list[seq]
-  mlist <- lapply(1:nblock, function(x) rep(10, dblock[x]))
-  if (length(m) == d){
-    for (k in 1:length(m)){
-      pos <- bijection(partition, k)
-      mlist[[pos[1]]][pos[2]] <- m[k]
-    }
-  } else if (length(m) == 1) {
-    mlist <- lapply(1:nblock, function(x) rep(m, dblock[x]))
-  }
-  # else {
-  #   stop("Can not deal with this type of 'm', try: m=NULL, m=c(a_1,....,a_d),
-  #        m=a")
-  # } 
-  # "To see later "
-  
-  #### to verify if the partition is a disjoint one and to check that the union is a sequence 1:D ###
-  
+  #Creation of the subdivisions from m, type: list[seq]
+  subdivision_size <- vector("list", nblock)
   subdivision <- vector("list", nblock)
   for (j in 1:nblock) {
-    subdivision[[j]] <- lapply(1:dblock[j],
-                               function(k) matrix(seq(0, 1, by = 1/(mlist[[j]][k]-1)), ncol = 1))
-    names(subdivision[[j]]) <- names(mlist[[j]]) <- paste("x", partition[[j]], sep = "")
+    subdivision_size[[j]] <- sapply(1:dim_block[j],function(k)  m[partition[[j]][k]])
+    subdivision[[j]] <- lapply(1:dim_block[j],function(k) matrix(seq(0, 1, by = 1/(m[partition[[j]][k]]-1)), ncol = 1))
+    #names(subdivision[[j]]) <- names(subdivision[[j]]) <- paste("x", partition[[j]], sep = "")
   }
+  names(subdivision) <- names(subdivision) <- names(partition) <- paste("block", 1:nblock, sep = "")
     
   # creating some lists for the model
-  names(mlist) <- names(subdivision) <- names(partition) <- paste("block", 1:nblock, sep = "")
-  localParam <- list(mlist = mlist, 
-                     sampler = "ExpT",
-                     nblock = nblock, partition = partition, dblock = dblock, 
+  
+  localParam <- list(subdivision = subdivision, subdivision_size = subdivision_size,
+                     sampler = "ExpT", nblock = nblock, partition = partition, dim_block = dim_block, 
                      samplingParams = c(thinning = 1, burn.in = 1, scale = 0.1))
   
   ##Constraints 
@@ -113,9 +95,11 @@ create.lineqBAGP <- function(x, y, constrType,
   constrFlags <- rep(1, nblock) # to be checked later 
   
   kernParam <- constrParam <- vector("list", nblock)
-  names(kernParam) <- names(constrParam) <- paste("block", 1:nblock, sep = "")
+  kernParam$type <- "matern52"
+  kernParam$par <- vector("list", nblock)
+  names(constrParam) <- names(kernParam$par) <- paste("block", 1:nblock, sep = "")
   for (j in 1:nblock) { # to be checked later! We will focus on the monotonicity constraint
-    kernParam[[j]] <- list(par = c(sigma2 = 1^2, theta = rep(0.1, dblock[j])), type = "matern52")#, nugget = 1e-7*sd(y))
+    kernParam$par[[j]] <- c(sigma2 = 1^2, theta = rep(0.1, dim_block[j]))
     switch (constrType[j],
             boundedness = {
               constrParam[[j]]$bounds <- c(lower = min(y) - 0.05*abs(max(y) - min(y)),
@@ -153,9 +137,12 @@ create.lineqBAGP <- function(x, y, constrType,
 #' @param ... further arguments passed to or from other methods
 #' 
 #' @return An expanded \code{"lineqGP"} object with the following additional elements
+#' 
 #' \item{Phi}{a matrix corresponding to the hat basis functions.
 #' The basis functions are indexed by rows}
-#' \item{Gamma}{the covariance matrix of the Gassian vector \eqn{\boldsymbol{\xi}}{\xi}.}
+#' \item{kernel$Param an object indicating for each variable the associated kernel} #will evolve
+#' \item{Gamma.var}{a list of list of matrix where Gamma.var[[j]][[k]][i] is 
+#' the covariance matrix of the 1D GP with kernel kernel$Param[[j]][[k]] for the points $x^{(1)}_{\sigma(i)},..., x^{n}_{\sigma(i)}}$.
 #' \item{(Lambda,lb,ub)}{the linear system of inequalities.}
 #' \item{...}{further parameters passed to or from other methods.}
 #'
@@ -210,38 +197,29 @@ augment.lineqBAGP<- function(x, ...) {
   } else {
     bounds <- c(0, Inf)
   }
+  
   # passing some terms from the model
   x <- model$x
   nblock <- model$localParam$nblock
-  dblock <- model$localParam$dblock
+  dim_block <- model$localParam$dim_block
   partition <- model$localParam$partition
   subdivision <- model$subdivision
-  mlist <- model$localParam$mlist
-  mtotal <- model$localParam$mtotal <- sum(sapply(mlist, prod))
+  subdivision_size <- model$localParam$subdivision_size
+  nknots <- model$localParam$nknots <- sum(sapply(subdivision_size, prod))
   
-  Gamma.perVar <- Phi.perVar <- vector("list", nblock)
-  names(Gamma.perVar) <- names(Phi.perVar) <- paste("block", 1:nblock, sep = "")
-  for (j in 1:nblock) {
-    Gamma.perVar[[j]] <- lapply(1:dblock[j],
-                                function(k) kernCompute(subdivision[[j]][[k]],
-                                                        subdivision[[j]][[k]],
-                                                        model$kernParam[[j]]$type,
-                                                        model$kernParam[[j]]$par[c(1, k+1)]))
-    Phi.perVar[[j]] <- lapply(1:dblock[j],
-                              function(k) basisCompute.lineqGP(x[, partition[[j]][k]],
-                                                               subdivision[[j]][[k]]))
-    
-    names(Gamma.perVar[[j]]) <- names(Phi.perVar[[j]]) <- paste("x", partition[[j]], sep = "")
-  }
+  #' Beginning of the construction of the two matrices Gamma and Phi which will 
+  #' help us to express the law of the gaussian vector from the conditional law.
   
-  model$subdivision <- subdivision
-  model$Gamma.perVar <- Gamma.perVar
-  model$Phi.perVar <- Phi.perVar
+  Gamma.var <- Gamma_var(subdivision, model$kernParam$par, model$kernParam$type, dim_block, nblock)
+  Phi.var <- Phi_per_var(subdivision,partition,dim_block,x)
+  
+  model$Gamma.var <- Gamma.var
+  model$Phi.var <- Phi.var
   
   # precomputing the linear system for the QP solver and MCMC samplers
-  M.perBlock <- g.perBlock <- vector("list", nblock)
-  m.perBlock <- rep(0, nblock)
-  names(M.perBlock) <- names(g.perBlock) <- names(m.perBlock) <- paste("block", 1:nblock, sep = "")
+  M.block <- g.block <- vector("list", nblock)
+  m.block <- rep(0, nblock)
+  names(M.block) <- names(g.block) <- names(m.block) <- paste("block", 1:nblock, sep = "")
   for (j in 1:nblock) {
     if (model$constrType[j] == "linear") { #to be checked!
       if (!("Lambda" %in% names(model)))
@@ -257,9 +235,9 @@ augment.lineqBAGP<- function(x, ...) {
       bounds <- model$constrParam[[j]]$bounds
       
       
-      lsys <- lineqGPSys(mlist[[j]], model$constrType[[j]], bounds[1], bounds[2],
+      lsys <- lineqGPSys(subdivision_size[[j]], model$constrType[[j]], bounds[1], bounds[2],
                          constrIdx = model$constrIdx, lineqSysType = "oneside")
-      lsys2 <- lineqGPSys(mlist[[j]], model$constrType[[j]], bounds[1], bounds[2],
+      lsys2 <- lineqGPSys(subdivision_size[[j]], model$constrType[[j]], bounds[1], bounds[2],
                           constrIdx = model$constrIdx, rmInf = FALSE)
       
       model$constrParam[[j]]$Lambda <- lsys2$A
@@ -268,29 +246,29 @@ augment.lineqBAGP<- function(x, ...) {
     }
     
     # oneside linear structure for QP.solver: M = [Lambda,-Lambda] and g = [-lb,ub]
-    M.perBlock[[j]] <- lsys$M
-    g.perBlock[[j]] <- -matrix(lsys$g)
+    M.block[[j]] <- lsys$M
+    g.block[[j]] <- -matrix(lsys$g)
     # twosides linear structure (Lambda, lb, ub) for MCMC samplers
     
     # extra term required for HMC sampler
-    m.perBlock[j] <- nrow(lsys2$A)
+    m.block[j] <- nrow(lsys2$A)
   }
   # adding the parameters to the model structure
-  model$lineqSys$M.perBlock <- M.perBlock # for QP solve
-  model$lineqSys$g.perBlock <- g.perBlock # for QP solve
-  model$localParam$m.perBlock <- m.perBlock # for HMC sampler
+  model$lineqSys$M.block <- M.block # for QP solve
+  model$lineqSys$g.block <- g.block # for QP solve
+  model$localParam$m.block <- m.block # for HMC sampler
 
   model$lineqSys$M <- eval(parse(text = paste("bdiag(",
-                                              paste("M.perBlock[[", 1:nblock, "]]", sep = "", collapse = ","),
+                                              paste("M.block[[", 1:nblock, "]]", sep = "", collapse = ","),
                                               ")", sep = "")))
-  model$lineqSys$M <- matrix(model$lineqSys$M, ncol = mtotal)
-  model$lineqSys$g <- matrix(unlist(model$lineqSys$g.perBlock), ncol = 1)
+  model$lineqSys$M <- matrix(model$lineqSys$M, ncol = nknots)
+  model$lineqSys$g <- matrix(unlist(model$lineqSys$g.block), ncol = 1)
   
   model$lineqSys$Lambda <- eval(parse(text = paste("bdiag(",
                                                    paste("model$constrParam[[", 1:nblock, "]]$Lambda",
                                                          sep = "", collapse = ","),
                                                       ")", sep = "")))
-  model$lineqSys$Lambda <- matrix(model$lineqSys$Lambda, ncol = mtotal)
+  model$lineqSys$Lambda <- matrix(model$lineqSys$Lambda, ncol = nknots)
   model$lineqSys$lb <- eval(parse(text = paste("c(",
                                                paste("model$constrParam[[", 1:nblock, "]]$lb",
                                                      sep = "", collapse = ","),
@@ -300,7 +278,6 @@ augment.lineqBAGP<- function(x, ...) {
                                                      sep = "", collapse = ","),
                                                ")", sep = "")))
 
-  
   return(model)
 }
 
@@ -321,7 +298,16 @@ augment.lineqBAGP<- function(x, ...) {
 #' \item{mu}{the unconstrained GP mean predictor}
 #' \item{Sigma}{the unconstrained GP prediction conditional covariance matrix}
 #' \item{xi.map}{the GP maximum a posteriori (MAP) predictor given the inequality constraints}
-#'
+#' \item{Gamma} Matrix representing \eqn{k_{S}(\xi,\xi)}
+#' \item{Gamma.block} Gamma represented per block as a list of matrices
+#' \item{Phi} Matrix representing \eqn{\Phi}
+#' \item{Phi.block} Phi represented per block as a list of matrices
+#' \item{t_phi} The transpose of Phi
+#' \item{t_Phi.block} t_Phi represented per block as a list of matrices
+#' \item{invSigma} The covariance matrix of the gaussian vector 
+#' \item{y.mean} Prediction of x knowing that 
+#' \item{mid.term} The mid term is computed
+#' \item{xi.mode}
 #' @details The posterior paramaters of the finite-dimensional GP with linear inequality
 #' constraints are computed. Here, \eqn{\boldsymbol{\xi}}{\xi} is a centred Gaussian
 #' vector with covariance \eqn{\boldsymbol{\Gamma}}{\Gamma}, s.t.
@@ -384,103 +370,75 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
     xtest <- matrix(xtest, ncol = model$d)
   
   nblock <- model$localParam$nblock
-  dblock <- model$localParam$dblock
-  mlist <- model$localParam$mlist
+  dim_block <- model$localParam$dim_block
+  subdivision <- model$localParam$subdivision
+  subdivision_size <- model$localParam$subdivision_size
+  block_tensor_size <- sapply(subdivision_size, prod)
   partition <- model$localParam$partition
+  inv_tau <- 1/model$varnoise
     
-  nt <- length(model$y) # nb of training points 
-  mt <- model$localParam$mtotal # total nb of knots
+  nobs <- length(model$y) # nb of training points 
+  nknots <- model$localParam$nknots # total nb of knots
   
   # passing some terms from the model
   pred <- list()
   class(pred) <- class(model)
   pred$constrParam <- model$constrParam
   
-  # precomputing some terms
+  # The real block matrices
   
-  Gamma.perBlock <- list("vector", nblock)
-  Phi.perBlock <- list("vector", nblock)
+  Gamma.block <- Gamma_var_to_tensor(model$Gamma.var, dim_block, nblock)
+  Gamma <- block_to_vect(Gamma.block)
+  #nugget.block <- lapply(1:nblock, function(x) 1e-9*diag(block_tensor_size[x]))
+  #Gamma.block <- block_sum(Gamma.block,nugget.block)
   
-  Phi.test.perVar <- vector("list", nblock)
-  Phi.test.perBlock <- vector("list", nblock)
+  Phi.block <- Phi_var_to_tensor(model$Phi.var, subdivision, subdivision_size, dim_block)
+  Phi <- block_to_vect(Phi.block,"line")
+  t_Phi.block <- block_transpose(Phi.block)
+  t_Phi <- block_to_vect(t_Phi.block, "column")
+    
+  # One Block matrix for testing our results
   
-  for (j in 1:nblock) {
-    Gamma.perBlock[[j]] <- eval(parse(text = paste("model$Gamma.perVar[[j]][[", 1:dblock[j], "]]",
-                                                   sep = "", collapse = "%x%")))
-    
-    Phi.perBlock[[j]] <- matrix(0, nt, prod(mlist[[j]]))
-    for (n in 1:nt)
-      Phi.perBlock[[j]][n, ] <- eval(parse(text = paste("model$Phi.perVar[[j]][[", 1:dblock[j], "]][", n, ", ]",
-                                                        sep = "", collapse = "%x%")))
-    
-    Phi.test.perVar[[j]] <- lapply(1:dblock[j],
-                                   function(k) basisCompute.lineqGP(xtest[, partition[[j]][k]],
-                                                                    model$subdivision[[j]][[k]]))
-    Phi.test.perBlock[[j]] <- matrix(0, nrow(xtest), prod(mlist[[j]]))
-    for (n in 1:nrow(xtest))
-      Phi.test.perBlock[[j]][n, ] <- eval(parse(text = paste("Phi.test.perVar[[j]][[", 1:dblock[j], "]][", n, ", ]",
-                                                            sep = "", collapse = "%x%")))
-    
+  #Phi.test.var <- Phi_per_var(subdivision,partition,dim_block,xtest)
+  #Phi.test.block <- Phi_var_to_tensor(Phi.test.var, subdivision, subdivision_size, dim_block)
+  pred$Phi.test <- Phi.test <- block_to_vect(Block_Phi(xtest,partition,subdivision,subdivision_size, dim_block),"line")
+  
+  
+  #The cholesky decomposition to stabilize the inverse operation
+  
+  cholGamma.block <- block_chol(Gamma.block)
+  invGamma.block <- block_chol2inv(cholGamma.block)
+  
+  #Computation of the conditional covariance matrix of the vector 
+  
+  invSigma <- block_to_vect(invGamma.block) + inv_tau*t_Phi%*%Phi
+  
+  #Computation of the mean vector for the conditional vector law, according to the 
+  #complexity study we have two cases to optimize the computation
+  
+  In <- diag(nobs)  
+  Gammat_Phi.block <- block_prod(Gamma.block,t_Phi.block)
+  Gammat_Phi <- block_to_vect(Gammat_Phi.block,"column")
+  
+  #Computation of the inverse of the mid term in the most efficient way
+  if (nobs<=2*nknots) {
+    mid.term <- chol2inv(chol(model$varnoise*In+block_to_vect(block_prod(Phi.block,Gammat_Phi.block),"sum")))
+  } else {
+    mid.term <- inv_tau*(In-inv_tau*Phi%*%chol2inv(chol(block_to_vect(invGamma.block)+inv_tau*t_PhiPhi))%*%t_Phi)
   }
-    
+  Gammat_Phimid.term <- Gammat_Phi%*%mid.term
+  xi.mean <- Gammat_Phimid.term%*%ydesign
+  pred$xi.mean <- xi.mean
+  pred$Sigma <- Gamma - Gammat_Phimid.term%*%t(Gammat_Phi)
   
-
-  # # computing the conditional mean vector and conditional covariance matrix
-  # # given the interpolation points
-  pred$bigPhi <- bigPhi <- eval(parse(text = paste("cbind(",
-                                    paste("Phi.perBlock[[", 1:nblock, "]]", sep = "", collapse = ","),
-                                    ")", sep = "")))
-  pred$bigPhi.test <- eval(parse(text = paste("cbind(",
-                                              paste("Phi.test.perBlock[[", 1:nblock, "]]", sep = "", collapse = ","),
-                                              ")", sep = "")))
-  
-  bigGamma <- eval(parse(text = paste("bdiag(",
-                                      paste("Gamma.perBlock[[", 1:nblock, "]]", sep = "", collapse = ","),
-                                      ")", sep = "")))
-  
-  # ##Function to have stable inverse of symetric matrices
-  # stable_inv <-function(Sym){
-  #   cholSym <- lapply(Sym, function(x) chol(x))
-  #   invSym <- lapply(cholSym, function(x) chol2inv(x))
-  # }
-  
-  cholGamma.perBlock <- lapply(Gamma.perBlock, function(x) chol(x))
-  invGamma.perBlock <- lapply(cholGamma.perBlock, function(x) chol2inv(x))
-  invBigGamma <- eval(parse(text = paste("bdiag(",
-                                         paste("invGamma.perBlock[[", 1:nblock, "]]", sep = "", collapse = ","),
-                                         ")", sep = "")))
-  invSigma <- as.matrix(invBigGamma) + t(bigPhi)%*%bigPhi/model$varnoise
-  
-  ### to be adapted !! ###
-  ## to fix the matrix inversion lemma in the computation of the mean
-  # if (mt < nt) {
-  #   PhicholGamma.perBlock <- lapply(1:nblock, function(j) Phi.perBlock[[j]]%*%cholGamma.perBlock[[j]])
-  #   PhicholGamma <- eval(parse(text = paste("cbind(", paste("PhicholGamma.perBlock[[", 1:nblock, "]]",
-  #                                                           sep = "", collapse = ","), ")", sep = "")))
-  #   ILtPhitPhiL <- model$varnoise*diag(mt) + t(PhicholGamma) %*% PhicholGamma
-  #   
-  #   # ILtPhitPhiL <- ILtPhitPhiL + model$nugget*nrow(ILtPhitPhiL)
-  #   cholILtPhitPhiL <- t(chol(ILtPhitPhiL))
-  #   Lschur <- forwardsolve(cholILtPhitPhiL, t(PhicholGamma))
-  #   invPhiGammaPhitFull <- (diag(nt) - t(Lschur)%*% Lschur)/model$varnoise
-  # } else {
-    GammaPhit.perBlock <- lapply(1:nblock, function(j) Gamma.perBlock[[j]]%*%t(Phi.perBlock[[j]]))
-    GammaPhit <- eval(parse(text = paste("rbind(", paste("GammaPhit.perBlock[[", 1:nblock, "]]", sep = "", collapse = ","), ")")))
-    PhiGammaPhit.perBlock <- lapply(1:nblock, function(j) Phi.perBlock[[j]]%*%GammaPhit.perBlock[[j]])
-    PhiGammaPhit <- eval(parse(text = paste("PhiGammaPhit.perBlock[[", 1:nblock, "]]", sep = "", collapse = "+")))
-    PhiGammaPhit <- PhiGammaPhit + model$nugget*diag(nrow(PhiGammaPhit))
-    invPhiGammaPhitFull <- chol2inv(chol(PhiGammaPhit + model$varnoise*diag(nrow(PhiGammaPhit)))) # instability issues here
-  # }
-
-  pred$xi.mean <- as.vector(GammaPhit %*% invPhiGammaPhitFull %*% model$y)
-  pred$Sigma <- bigGamma - GammaPhit %*% invPhiGammaPhitFull %*% t(GammaPhit)
   # pred$Sigma <- chol2inv(chol(invSigma))
 
   pred$xi.mode <- solve.QP(invSigma, t(pred$xi.mean) %*% invSigma,
                            t(model$lineqSys$M), model$lineqSys$g)$solution
   
-  pred$y.mean <- pred$bigPhi.test %*% pred$xi.mean
-  pred$y.mode <- pred$bigPhi.test %*% pred$xi.mode
+  
+  pred$y.mean <- pred$Phi.test%*%pred$xi.mean
+  pred$y.mode <- pred$Phi.test%*%pred$xi.mode
 
   if (return_model)
     pred$model <- model
@@ -578,7 +536,7 @@ simulate.lineqBAGP <- function(object, nsim = 1, seed = NULL, xtest, ...) {
   
   # listing control terms
   control <- as.list(unlist(model$localParam$samplingParam))
-  control$mvec <- sum(model$localParam$m.perBlock) # for HMC
+  control$mvec <- sum(model$localParam$m.block) # for HMC
   control$constrType <- model$constrType # for HMC
   
   tmvPar <- list(mu = eta.mode, Sigma = Sigma.eta,
@@ -608,7 +566,7 @@ simulate.lineqBAGP <- function(object, nsim = 1, seed = NULL, xtest, ...) {
   simModel$y.mean <- pred$y.mean
   simModel$y.mode <- pred$y.mode
   simModel$xi.sim <- xi.sim
-  simModel$y.sim <- pred$bigPhi.test %*% xi.sim
+  simModel$y.sim <- pred$Phi.test %*% xi.sim
   # simModel$PhiAll.test <- pred$PhiAll.test
   
   class(simModel) <- class(model)

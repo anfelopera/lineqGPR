@@ -25,6 +25,16 @@ at \code{xtest}. The basis functions are indexed by rows}
 \item{mu}{the unconstrained GP mean predictor}
 \item{Sigma}{the unconstrained GP prediction conditional covariance matrix}
 \item{xi.map}{the GP maximum a posteriori (MAP) predictor given the inequality constraints}
+\item{Gamma} Matrix representing \eqn{k_{S}(\xi,\xi)}
+\item{Gamma.block} Gamma represented per block as a list of matrices
+\item{Phi} Matrix representing \eqn{\Phi}
+\item{Phi.block} Phi represented per block as a list of matrices
+\item{t_phi} The transpose of Phi
+\item{t_Phi.block} t_Phi represented per block as a list of matrices
+\item{invSigma} The covariance matrix of the gaussian vector 
+\item{y.mean} Prediction of x knowing that 
+\item{mid.term} The mid term is computed
+\item{xi.mode}
 }
 \description{
 Prediction method for the \code{"lineqBAGP"} S3 class.

@@ -12,7 +12,7 @@ Depends: utils, stats, broom, nloptr, purrr
 Imports: MASS, Matrix, quadprog, mvtnorm, TruncatedNormal, graphics,
         grDevices, ggplot2, plot3D
 Suggests: Rcpp, testthat, tmg, viridis, tikzDevice, foreach, doParallel
-RoxygenNote: 7.1.2
+RoxygenNote: 7.2.3
 Encoding: UTF-8
 NeedsCompilation: yes
 Packaged: 2022-10-11 13:50:52 UTC; allopera
