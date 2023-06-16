@@ -2,15 +2,15 @@ library("lineqGPR")
 library("DiceDesign")
 library("plot3D")
 library("viridis")
-library("Matrix")
+# library("Matrix")
 
 rm(list=ls())
 set.seed(7)
 
 #### Synthetic data ####
 d <- 3 # number of active input variables
-partition <- list(c(1,3), 2)
-nblock <- length(partition)
+partition <- list(c(1,3), 2) # partition of the block structure
+nblocks <- length(partition) # nb of blocks
 
 targetFun <- function(x, partition) {
   return(x[, partition[[1]][1]]*x[, partition[[1]][2]] + x[, partition[[2]][1]])
@@ -19,7 +19,7 @@ targetFun <- function(x, partition) {
 # building Latin hypercube sampling (LHS) design 
 nbtrain <- 4*d
 xdesign <- lhsDesign(nbtrain, d, seed = 0)$design
-xdesign <- maximinSA_LHS(xdesign)$design
+# xdesign <- maximinSA_LHS(xdesign)$design
 
 # adding extra training points with second block's variable = 0
 nbextra <- 4
@@ -37,27 +37,42 @@ ytest <- targetFun(xtest, partition)
 #### Constrained model ####
 # creating the model
 model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
-                constrType = rep("monotonicity", nblock), 
+                constrType = rep("monotonicity", nblocks), 
                 partition = partition,
                 m = c(5, 3, 4))
 
-for (k in 1:nblock)
-  model$kernParam[[k]]$par <- c(1, rep(0.1, model$localParam$dim_block[k]))
+# modifying the covariance parameters of each block
+for (k in 1:nblocks)
+  model$kernParam$par[[k]] <- c(1, rep(0.1, model$localParam$dim_block[k]))
 
-model$localParam$sampler <- "HMC"
-model$nugget <- 1e-5
-model$varnoise <- 0.05*sd(ydesign)^2 
+# model$localParam$sampler <- "HMC"
+# model$nugget <- 1e-5
 
-model_test <- augment(model)
+# model_temp <- lineqGPOptim(model,
+#                            additive = TRUE,
+#                            block = TRUE,
+#                            partition = list(c(1,3), 2),
+#                            estim.varnoise = TRUE, # to add this info at the MaxMod level
+#                            bounds.varnoise = c(1e-7, Inf), # to add this info at the MaxMod level
+#                            lb = rep(1e-2, model_temp$d+1), ub = c(Inf, rep(1, model_temp$d)) # to add this info at the MaxMod level
+# )
+
+
 pred <- predict(model, xtest)
-model.sim <- simulate(model, 1e3, seed = 1, xtest)
+model.sim <- simulate(model, 1e2, seed = 1, xtest)
 
-plot(ytest, pred$y.mean)
-plot(ytest, pred$y.mode)
-plot(ytest, model.sim$y.sim[, 1])
-plot(ytest, model.sim$y.sim[, 10])
-plot(ytest, model.sim$y.sim[, 99])
 
+
+par(mfrow = c(2,2), mar=c(1.5,1.5,1.5,1))
+plot(ytest, pred$y.mean, main = 1 - sum((ytest- pred$y.mean)^2)/sum((ytest- mean(ytest))^2))
+plot(ytest, pred$y.mode, main = 1 - sum((ytest- pred$y.mode)^2)/sum((ytest- mean(ytest))^2))
+plot(ytest, rowMeans(model.sim$y.sim), main = 1 - sum((ytest- rowMeans(model.sim$y.sim))^2)/sum((ytest- mean(ytest))^2))
+
+
+
+mean((as.matrix(ydesign) - predict(model, xdesign)$y.mean)^2)
+mean((as.matrix(ydesign) - predict(model, xdesign)$y.mode)^2)
+mean((as.matrix(ydesign) - predict(model, xdesign)$y.mode)^2)
 
 colormap <- rev(viridis(1e2))
 par(mfrow = c(2,2), mar=c(1.5,1.5,1.5,1))
@@ -90,13 +105,7 @@ p <- persp3D(x = xbase, y = xbase,
 points3D(xdesign[idxProj, partition[[1]][1]],
          xdesign[idxProj, partition[[1]][2]], ydesign[idxProj], pch = 20, cex = 2,  col = "black", add = TRUE)
 
-# model_temp <- lineqGPOptim(model,
-#                            additive = TRUE,
-#                            partition = list(c(1,3), 2),
-#                            estim.varnoise = TRUE, # to add this info at the MaxMod level
-#                            bounds.varnoise = c(1e-7, Inf), # to add this info at the MaxMod level
-#                            lb = rep(1e-2, model_temp$d+1), ub = c(Inf, rep(1, model_temp$d)) # to add this info at the MaxMod level
-# )
+
 
 # # evaluating the model
 # model <- AdditiveMaxMod(model,

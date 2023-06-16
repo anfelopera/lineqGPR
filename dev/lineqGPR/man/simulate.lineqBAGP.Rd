@@ -41,39 +41,44 @@ vector with covariance \eqn{\boldsymbol{\Gamma}}{\Gamma}, s.t.
 (inequality constraints).
 }
 \examples{
-library(plot3D)
+
+# synthetic data
+d <- 3 # number of active input variables
+partition <- list(c(1,3), 2) # partition of the block structure
+nblocks <- length(partition) # nb of blocks
+
+targetFun <- function(x, partition)
+  return(x[, partition[[1]][1]]*x[, partition[[1]][2]] + x[, partition[[2]][1]])
+
+# building a random design 
+nbdesign <- 6*d
+xdesign <- matrix(runif(nbdesign*d), nbdesign, d)
+ydesign <- targetFun(xdesign, partition)
+
+# defining the 3D grid for predictions 
+n1D <- 20
+xbase <- seq(0, 1, length = n1D)
+xtest <- as.matrix(expand.grid(xbase, xbase, xbase))
+ytest <- targetFun(xtest, partition)
+
 # creating the model
-d <- 2
-fun1 <- function(x) return(4*(x-0.5)^2)
-fun2 <- function(x) return(2*x)
-targetFun <- function(x) return(fun1(x[, 1]) + fun2(x[, 2])) 
-xgrid <- expand.grid(seq(0, 1, 0.01), seq(0, 1, 0.01))
-ygrid <- targetFun(xgrid)
-xdesign <- rbind(c(0.5, 0), c(0.5, 0.5), c(0.5, 1), c(0, 0.5), c(1, 0.5))
-ydesign <- targetFun(xdesign)
 model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
-                constrType = c("convexity", "monotonicity"), m = 10)
+                constrType = rep("monotonicity", nblocks), 
+                partition = partition,
+                m = c(5, 3, 4))
 
-# updating and expanding the model
-model$kernParam[[1]]$type <- "matern52"
-model$kernParam[[2]]$type <- "matern52"
-model$kernParam[[1]]$par <- c(1, 0.2)
-model$kernParam[[2]]$par <- c(1, 0.3)
-model$nugget <- 1e-9
-model$varnoise <- 1e-5
+# modifying the covariance parameters of each block
+for (k in 1:nblocks)
+  model$kernParam$par[[k]] <- c(1, rep(0.1, model$localParam$dim_block[k]))
+  
+# simulating constrained MCMC samples
+model.sim <- simulate(model, 1e2, seed = 1, xtest)
 
-# sampling from the model
-ntest <- 25
-xtest  <- cbind(seq(0, 1, length = ntest), seq(0, 1, length = ntest))
-ytest <- targetFun(xtest)
-sim.model <- simulate(model, nsim = 1e3, seed = 1, xtest = xtest)
-PhiAll.test <- cbind(sim.model$Phi.test[[1]][rep(1:ntest, times = ntest), ],
-                     sim.model$Phi.test[[2]][rep(1:ntest, each = ntest), ])
-persp3D(x = unique(xtest[, 1]), y = unique(xtest[, 2]),
-        z = matrix(rowMeans(PhiAll.test \%*\% sim.model$xiAll.sim), ntest, ntest),
-        xlab = "x1", ylab = "x2", zlab = "mode(x1,x2)", zlim = c(0, 3),
-        phi = 20, theta = -30, alpha = 1, colkey = FALSE)
-points3D(x = xdesign[,1], y = xdesign[,2], z = ydesign, col = "black", pch = 19, add = TRUE)
+# Q2 criterion
+var_design <- mean((ytest- mean(ytest))^2)
+message("Unconstrained GP mean: ", 1 - mean((ytest- model.sim$y.mean)^2)/var_design)
+message("Constrained GP mode: ", 1 - mean((ytest- model.sim$y.mode)^2)/var_design)
+message("Constrained GP mean via MCMC: ", 1 - mean((ytest- rowMeans(model.sim$y.sim))^2)/var_design)
 
 }
 \references{
@@ -87,5 +92,5 @@ A. F. Lopez-Lopera (2019),
          \code{\link{predict.lineqBAGP}}
 }
 \author{
-A. F. Lopez-Lopera
+M. Deronzier and A. F. Lopez-Lopera
 }

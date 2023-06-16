@@ -7,18 +7,18 @@
 \method{augment}{lineqBAGP}(x, ...)
 }
 \arguments{
-\item{x}{an object with class \code{lineqGP}}
+\item{x}{An object with class \code{lineqBAGP}.}
 
-\item{...}{further arguments passed to or from other methods}
+\item{...}{further arguments passed to or from other methods.}
 }
 \value{
-An expanded \code{"lineqGP"} object with the following additional elements
+An expanded \code{"lineqBAGP"} An object with the following additional elements.
 
 \item{Phi}{a matrix corresponding to the hat basis functions.
 The basis functions are indexed by rows}
-\item{kernel$Param an object indicating for each variable the associated kernel} #will evolve
+\item{kernel$Param}{an object indicating for each variable the associated kernel} #will evolve
 \item{Gamma.var}{a list of list of matrix where Gamma.var[[j]][[k]][i] is 
-the covariance matrix of the 1D GP with kernel kernel$Param[[j]][[k]] for the points $x^{(1)}_{\sigma(i)},..., x^{n}_{\sigma(i)}}$.
+the covariance matrix of the 1D GP with kernel kernel$Param[[j]][[k]] for the points \eqn{x^{(1)}_{\sigma(i)},..., x^{n}_{\sigma(i)}}}.
 \item{(Lambda,lb,ub)}{the linear system of inequalities.}
 \item{...}{further parameters passed to or from other methods.}
 }
@@ -35,23 +35,24 @@ vector with covariance \eqn{\boldsymbol{\Gamma}}{\Gamma}, s.t.
 (inequality constraints).
 }
 \examples{
-# creating the model
-d <- 2
-fun1 <- function(x) return(4*(x-0.5)^2)
-fun2 <- function(x) return(2*x)
-targetFun <- function(x) return(fun1(x[, 1]) + fun1(x[, 2])) 
-xgrid <- expand.grid(seq(0, 1, 0.01), seq(0, 1, 0.01))
-ygrid <- targetFun(xgrid)
-xdesign <- rbind(c(0.5, 0), c(0.5, 0.5), c(0.5, 1), c(0, 0.5), c(1, 0.5))
-ydesign <- targetFun(xdesign)
-model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
-                constrType = c("convexity", "monotonicity"), m = 50)
 
-# updating and expanding the model
-model$kernParam[[1]]$par <- c(1, 0.2)
-model$kernParam[[2]]$par <- c(1, 0.2)
-model$nugget <- 1e-9
-model$varnoise <- 1e-5
+# synthetic data
+targetFun <- function(x)  return(x[, 1]*x[, 3] + x[, 2])
+
+d <- 3 # nb of dimensions
+nblocks <- 2 # nb of blocks
+
+nbdesign <- 4
+xdesign <- matrix(runif(nbdesign*d), nbdesign, d)
+ydesign <- targetFun(xdesign)
+
+# creating the model
+model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
+                constrType = rep("monotonicity", nblocks),
+                partition = list(c(1,3), 2),
+                m = c(5, 3, 4))
+                
+# computing some matrices used in the "lineqBAGP" model
 model <- augment(model)
 str(model)
 
@@ -67,5 +68,5 @@ A. F. Lopez-Lopera (2019),
          \code{\link{simulate.lineqBAGP}}
 }
 \author{
-A. F. Lopez-Lopera
+M. Deronzier and A. F. Lopez-Lopera
 }
