@@ -7,33 +7,15 @@
 \method{create}{lineqBAGP}(x, y, constrType, partition = as.list(seq(ncol(x))), m = NULL)
 }
 \arguments{
-\item{x}{float supposed to be a real number in $[0,1]$}
+\item{x}{A vector or matrix with the input data. The dimensions should be indexed by columns}
 
-\item{y}{a vector with the output data}
+\item{y}{A vector with the output data}
 
-\item{constrType}{a character string corresponding to the type of the inequality constraint}
+\item{constrType}{A character string corresponding to the type of the inequality constraint}
 
-\item{partition}{a list of list making a partion of set $\{1,cdots,D\}$}
+\item{partition}{A list containing the partion of set \eqn{\{1, \cdots, D\}}}
 
-\item{m}{a scalar or vector corresponding to the number of knots per dimension.}
-
-\item{subdivision}{:list[list[seq]] The subdivisions for each axe subdivision[[j]][[k]]}
-
-\item{subdivision_taille}{list[seq] subdivision_size[[j]][k] =length(subdivision[[j]][[k]])}
-
-\item{dim_block}{:seq, the size of the blocks, dim_block[j]=length(partition[[j]])
-will give the subdivision of $[0,1]$ for the variable partition[[j]][[k]]}
-
-\item{X}{matrix such that X[,i] is an observation $x^{(i)}$}
-
-\item{Y}{the vector of observation Y[i]=f(X[,i])}
-
-\item{A, B}{list["vector"] Matrices per block of type}
-
-\item{d}{a number corresponding to the dimension of the input space.
-
-Options: "boundedness", "monotonicity", "convexity", "linear"
-Multiple constraints can be also defined, e.g. \code{constrType = c("boundedness", "monotonicity")}}
+\item{m}{A scalar or vector corresponding to the number of knots per dimension.}
 }
 \value{
 A list with the following elements.
@@ -55,14 +37,18 @@ See \code{\link{kernCompute}}}
 Creation method for the \code{"lineqBAGP"} S3 class.
 }
 \examples{
-# creating the model
-targetFun <- function(x) {
-  return(x[, 1]*x[, 3] + x[, 2])
-}
-xdesign <- matrix(runif(12), 4, 3)
+
+# synthetic data
+targetFun <- function(x)  return(x[, 1]*x[, 3] + x[, 2])
+
+d <- 3 # nb of dimensions
+nblocks <- 2 # nb of blocks
+
+nbdesign <- 4
+xdesign <- matrix(runif(nbdesign*d), nbdesign, d)
 ydesign <- targetFun(xdesign)
-d <- 3 # number of dimensions
-nblocks <- 2
+
+# creating the model
 model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
                 constrType = rep("monotonicity", nblocks),
                 partition = list(c(1,3), 2),
@@ -80,5 +66,5 @@ A. F. Lopez-Lopera (2019),
 \code{\link{augment.lineqBAGP}}, \code{\link{predict.lineqBAGP}}, \code{\link{simulate.lineqBAGP}}
 }
 \author{
-A. F. Lopez-Lopera
+M. Deronzier and A. F. Lopez-Lopera
 }

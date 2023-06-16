@@ -758,6 +758,219 @@ logLikAdditiveGrad <- function(par = unlist(purrr::map(model$kernParam, "par")),
   return(gradf)
 }
 
+
+#' @title Log-Likelihood of a Block Additive Gaussian Process.
+#' @description Compute the negative log-likelihood of a Block Additive Gaussian Process.
+#' 
+#' @param par the values of the covariance parameters.
+#' @param model an object with \code{"lineqBAGP"} S3 class.
+#' @param parfixed not used.
+#' @param mcmc.opts not used.
+#' @param estim.varnoise If \code{true}, a noise variance is estimated.
+#' 
+#' @return The value of the negative log-likelihood.
+#' 
+#' @seealso \code{\link{logLikBlockAdditiveGrad}}
+#' 
+#' @author A. F. Lopez-Lopera
+#' 
+#' @importFrom Matrix bdiag
+#' 
+#' @export
+logLikBlockAdditiveFun <- function(par = unlist(purrr::map(model$kernParam, "par")),
+                              model,
+                              parfixed = NULL, mcmc.opts = NULL,
+                              estim.varnoise = FALSE) {
+  m <- model$localParam$m
+  mt <- sum(m)
+  nt <- length(model$y) 
+  ngroups <- model$localParam$ngroups
+  
+  u <- Gamma <- vector("list", ngroups)
+  Phi <- vector("list", ngroups) # to be computed once and called it
+  logDetGamma <- rep(0, ngroups)
+  invGamma <- vector("list", ngroups)
+  
+  for (j in 1:ngroups)
+    u[[j]] <- matrix(seq(0, 1, by = 1/(m[j]-1)), ncol = 1) # discretization vector
+  
+  if (estim.varnoise) {
+    varnoise <- par[length(par)]
+    par <- par[-length(par)]
+  } else {
+    varnoise <- model$varnoise
+  }
+  
+  # computing the kernel matrix for the prior
+  for (k in 1:ngroups) {
+    Gamma[[k]] <- kernCompute(u[[k]], u[[k]], model$kernParam[[k]]$type,
+                              par[(k-1)*length(model$kernParam[[k]]$par) + 1:2])
+    Phi[[k]] <- basisCompute.lineqGP(model$x[, k], u[[k]])
+  }
+  
+  if (mt < nt) {
+    hfunBigPhi <- parse(text = paste("cbind(",
+                                     paste("Phi[[", 1:ngroups, "]]", sep = "", collapse = ","),
+                                     ")", sep = ""))
+    bigPhi <- eval(hfunBigPhi)
+    cholGamma <- lapply(Gamma, function(x) t(chol(x)))
+    hfunBigCholGamma <- parse(text = paste("bdiag(",
+                                           paste("cholGamma[[", 1:ngroups, "]]", sep = "", collapse = ","),
+                                           ")", sep = ""))
+    bigCholGamma <- as.matrix(eval(hfunBigCholGamma))
+    PhibigCholGamma <- bigPhi %*% bigCholGamma
+    ILtPhitPhiL <- varnoise*diag(mt) + t(PhibigCholGamma) %*% PhibigCholGamma
+    cholILtPhitPhiL <- t(chol(ILtPhitPhiL))
+    Lschur <- forwardsolve(cholILtPhitPhiL, t(PhibigCholGamma))
+    invKyy <- (diag(nt) - t(Lschur)%*% Lschur)/varnoise
+    logDetKyy <- (nt-mt)*log(varnoise) + 2*sum(log(diag(cholILtPhitPhiL)))
+    
+    f <- 0.5*(logDetKyy + nrow(invKyy)*log(2*pi) + t(model$y)%*%invKyy%*%model$y)
+  } else {
+    # ptm1 <- proc.time()
+    Kyy <- matrix(0, nt, nt)
+    for (k in 1:ngroups)
+      Kyy <- Kyy + Phi[[k]] %*% Gamma[[k]] %*% t(Phi[[k]])
+    if (estim.varnoise)
+      Kyy <- Kyy + varnoise*diag(nt)
+    # ptm1 <- proc.time() - ptm1
+    
+    ## Alternative computation using block matrices
+    # ptm2 <- proc.time()
+    # hfunBigPhi <- parse(text = paste("cbind(",
+    #                                  paste("Phi[[", 1:ngroups, "]]", sep = "", collapse = ","),
+    #                                  ")", sep = ""))
+    # bigPhi <- eval(hfunBigPhi)
+    # hfunBigGamma <- parse(text = paste("bdiag(",
+    #                                    paste("Gamma[[", 1:ngroups, "]]", sep = "", collapse = ","),
+    #                                    ")", sep = ""))
+    # bigGamma <- eval(hfunBigGamma)
+    # Kyy <- bigPhi %*% bigGamma %*% t(bigPhi) + model$varnoise * diag(nt)
+    # Kyy <- matrix(Kyy, nt, nt)
+    # ptm2 <- proc.time() - ptm2
+    # print(ptm2 - ptm1)
+    
+    cholKyy <- t(chol(Kyy + model$nugget*diag(nt)))
+    alpha <- forwardsolve(cholKyy, model$y)
+    logDetKyy <- 2*sum(log(diag(cholKyy)))
+    
+    f <- 0.5*(logDetKyy + nrow(cholKyy)*log(2*pi) + t(alpha) %*% alpha)
+  }
+  return(f)
+}
+
+#' @title  Gradient of the Log-Likelihood of a Block Additive Gaussian Process.
+#' @description Compute the gradient of the negative log-likelihood of a Block Additive Gaussian Process.
+#' 
+#' @param par the values of the covariance parameters.
+#' @param model an object with \code{"lineqBAGP"} S3 class.
+#' @param parfixed indices of fixed parameters to do not be optimised.
+#' @param mcmc.opts not used.
+#' @param estim.varnoise If \code{true}, a noise variance is estimated.
+#' 
+#' @return the gradient of the negative log-likelihood.
+#'
+#' @seealso \code{\link{logLikBlockAdditiveFun}}
+#' 
+#' @author A. F. Lopez-Lopera
+#'
+#' @export
+logLikBlockAdditiveGrad <- function(par = unlist(purrr::map(model$kernParam, "par")), 
+                               model,  parfixed = rep(FALSE, model$d*length(par)),
+                               mcmc.opts = NULL,
+                               estim.varnoise = FALSE) {
+  m <- model$localParam$m
+  mt <- sum(m)
+  nt <- length(model$y) 
+  ngroups <- model$localParam$ngroups
+  
+  u <- Gamma <- vector("list", ngroups)
+  Phi <- vector("list", ngroups)
+  
+  for (j in 1:ngroups)
+    u[[j]] <- matrix(seq(0, 1, by = 1/(m[j]-1)), ncol = 1) # discretization vector
+  
+  if (estim.varnoise) {
+    varnoise <- par[length(par)]
+    par <- par[-length(par)]
+  } else {
+    varnoise <- model$varnoise
+  }
+  
+  # computing the kernel matrix for the prior
+  for (k in 1:ngroups) {
+    Gamma[[k]] <- kernCompute(u[[k]], u[[k]], model$kernParam[[k]]$type,
+                              par[(k-1)*length(model$kernParam[[k]]$par) + 1:2])
+    Phi[[k]] <- basisCompute.lineqGP(model$x[, k], u[[k]])
+  }
+  
+  if (mt < nt) {
+    hfunBigPhi <- parse(text = paste("cbind(",
+                                     paste("Phi[[", 1:ngroups, "]]", sep = "", collapse = ","),
+                                     ")", sep = ""))
+    bigPhi <- eval(hfunBigPhi)
+    cholGamma <- lapply(Gamma, function(x) t(chol(x)))
+    hfunBigCholGamma <- parse(text = paste("bdiag(",
+                                           paste("cholGamma[[", 1:ngroups, "]]", sep = "", collapse = ","),
+                                           ")", sep = ""))
+    bigCholGamma <- as.matrix(eval(hfunBigCholGamma))
+    PhibigCholGamma <- bigPhi %*% bigCholGamma
+    ILtPhitPhiL <- varnoise*diag(mt) + t(PhibigCholGamma) %*% PhibigCholGamma
+    cholILtPhitPhiL <- t(chol(ILtPhitPhiL))
+    Lschur <- forwardsolve(cholILtPhitPhiL, t(PhibigCholGamma))
+    invKyy <- (diag(nt) - t(Lschur)%*% Lschur)/varnoise
+  } else {
+    Kyy <- matrix(0, nt, nt)
+    for (k in 1:ngroups)
+      Kyy <- Kyy + Phi[[k]] %*% Gamma[[k]] %*% t(Phi[[k]])
+    if (estim.varnoise)
+      Kyy <- Kyy + varnoise*diag(nt)
+    
+    ## Alternative computation using block matrices
+    # hfunBigPhi <- parse(text = paste("cbind(",
+    #                                  paste("Phi[[", 1:ngroups, "]]", sep = "", collapse = ","),
+    #                                  ")", sep = ""))
+    # bigPhi <- eval(hfunBigPhi)
+    # hfunBigGamma <- parse(text = paste("bdiag(",
+    #                                    paste("Gamma[[", 1:ngroups, "]]", sep = "", collapse = ","),
+    #                                    ")", sep = ""))
+    # bigGamma <- eval(hfunBigGamma)
+    # Kyy <- bigPhi %*% bigGamma %*% t(bigPhi) + model$varnoise * diag(nt)
+    # Kyy <- matrix(Kyy, nt, nt)
+    
+    invKyy <- chol2inv(chol(Kyy + model$nugget*diag(nt)))
+    
+  }
+  
+  gradKyyTemp <- c()
+  idx_iter <- seq(length(par))
+  idx_iter <- idx_iter[parfixed == FALSE]
+  
+  alpha <- invKyy %*% model$y
+  cteTermLik <- invKyy - alpha%*%t(alpha)
+  gradf <- rep(0, length(par))
+  for (k in 1:ngroups) {
+    gradGammaSigma2 <- attr(Gamma[[k]], 'gradient')[[1]]
+    gradKyySigma2 <- Phi[[k]] %*% gradGammaSigma2 %*% t(Phi[[k]])
+    gradf[(k-1)*length(model$kernParam[[k]]$par) + 1] <- 0.5*sum(diag(cteTermLik %*% gradKyySigma2))
+    
+    gradGammaTheta <- attr(Gamma[[k]], 'gradient')[[2]]
+    gradKyyTheta <- Phi[[k]] %*% gradGammaTheta %*% t(Phi[[k]])
+    gradf[(k-1)*length(model$kernParam[[k]]$par) + 2] <- 0.5*sum(diag(cteTermLik %*% gradKyyTheta))
+  }
+  gradf[parfixed == TRUE] <- 0
+  
+  if (estim.varnoise) {
+    gradKyynoise <- diag(nrow(invKyy))
+    gradf <- c(gradf, 0.5*sum(diag(cteTermLik %*% gradKyynoise)))
+  }
+  
+  # gradf <- nl.grad(par, logLikFun, heps = 1e-9, model, parfixed, mcmc.opts)
+  # gradf[parfixed] <- 0
+  return(gradf)
+}
+
+
 # #' @title Log-Constrained-Likelihood of an Additive Gaussian Process.
 # #' @description Compute the negative log-constrained-likelihood of an Additive
 # #' Gaussian Process conditionally to the inequality constraints

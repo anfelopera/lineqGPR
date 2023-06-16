@@ -1,23 +1,24 @@
 #' @title Creation Method for the \code{"lineqBAGP"} S3 Class
 #' @description Creation method for the \code{"lineqBAGP"} S3 class.
 #' 
-#' @param x a vector or matrix with the input data. The dimensions should be indexed by columns
-#' @param y a vector with the output data
-#' @param constrType a character string corresponding to the type of the inequality constraint
-#' @param m a scalar or vector corresponding to the number of knots per dimension.
-#' @param partition a list of list making a partion of set $\{1,cdots,D\}$
-#' @param subdivision :list[list[seq]] The subdivisions for each axe subdivision[[j]][[k]]
-#' @param subdivision_taille list[seq] subdivision_size[[j]][k] =length(subdivision[[j]][[k]])
-#' @param dim_block :seq, the size of the blocks, dim_block[j]=length(partition[[j]])
-#'  will give the subdivision of $[0,1]$ for the variable partition[[j]][[k]]    
-#' @param X matrix such that X[,i] is an observation $x^{(i)}$
-#' @param x float supposed to be a real number in $[0,1]$
-#' @param Y the vector of observation Y[i]=f(X[,i]) 
-#' @param A,B list["vector"] Matrices per block of type 
-#' @param d a number corresponding to the dimension of the input space.
-#' 
-#' Options: "boundedness", "monotonicity", "convexity", "linear"
-#' Multiple constraints can be also defined, e.g. \code{constrType = c("boundedness", "monotonicity")}
+#' @param x A vector or matrix with the input data. The dimensions should be indexed by columns
+#' @param y A vector with the output data
+#' @param constrType A character string corresponding to the type of the inequality constraint
+#' @param partition A list containing the partion of set \eqn{\{1, \cdots, D\}}
+#' @param m A scalar or vector corresponding to the number of knots per dimension.
+# #' @param subdivision A list[list[seq]] The subdivisions for each axe subdivision[[j]][[k]]
+# #' @param subdivision_taille A list[seq] subdivision_size[[j]][k] =length(subdivision[[j]][[k]])
+# #' @param dim_block :seq, the size of the blocks, dim_block[j]=length(partition[[j]])
+# #'  will give the subdivision of $[0,1]$ for the variable partition[[j]][[k]]    
+# #' @param X A matrix such that X[,i] is an observation $x^{(i)}$
+# #' @param x A float supposed to be a real number in $[0,1]$
+# #' @param Y The vector of observation Y[i]=f(X[,i]) 
+# #' @param A list["vector"] Matrices per block of type 
+# #' @param B list["vector"] Matrices per block of type 
+# #' @param d a number corresponding to the dimension of the input space.
+# #' 
+# #' Options: "boundedness", "monotonicity", "convexity", "linear"
+# #' Multiple constraints can be also defined, e.g. \code{constrType = c("boundedness", "monotonicity")}
 #' 
 #' @return A list with the following elements.
 #' \item{x,y,constrType}{see \bold{Arguments}}
@@ -36,7 +37,7 @@
 #'
 #' @seealso \code{\link{augment.lineqBAGP}}, \code{\link{predict.lineqBAGP}}, \code{\link{simulate.lineqBAGP}}
 #' 
-#' @author A. F. Lopez-Lopera
+#' @author M. Deronzier and A. F. Lopez-Lopera
 #' 
 #' @references A. F. Lopez-Lopera (2019),
 #' "Gaussian process modelling under inequality constraints".
@@ -44,14 +45,18 @@
 #' <https://tel.archives-ouvertes.fr/tel-02863891>
 #'
 #' @examples
-#' # creating the model
-#' targetFun <- function(x) {
-#'   return(x[, 1]*x[, 3] + x[, 2])
-#' }
-#' xdesign <- matrix(runif(12), 4, 3)
+#' 
+#' # synthetic data
+#' targetFun <- function(x)  return(x[, 1]*x[, 3] + x[, 2])
+#' 
+#' d <- 3 # nb of dimensions
+#' nblocks <- 2 # nb of blocks
+#' 
+#' nbdesign <- 4
+#' xdesign <- matrix(runif(nbdesign*d), nbdesign, d)
 #' ydesign <- targetFun(xdesign)
-#' d <- 3 # number of dimensions
-#' nblocks <- 2
+#' 
+#' # creating the model
 #' model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
 #'                 constrType = rep("monotonicity", nblocks),
 #'                 partition = list(c(1,3), 2),
@@ -71,34 +76,37 @@ create.lineqBAGP <- function(x, y, constrType,
     y <- matrix(y)
   
   d <- ncol(x) # dimension of the input space
-  nblock <- length(partition) # nb of blocks
+  nblocks <- length(partition) # nb of blocks
   dim_block <- sapply(partition, function(x) length(x))
   
   #Creation of the subdivisions from m, type: list[seq]
-  subdivision_size <- vector("list", nblock)
-  subdivision <- vector("list", nblock)
-  for (j in 1:nblock) {
+  subdivision_size <- subdivision <- vector("list", nblocks)
+  names(subdivision) <- names(subdivision) <- names(partition) <- paste("block", 1:nblocks, sep = "")
+  
+  for (j in 1:nblocks) {
     subdivision_size[[j]] <- sapply(1:dim_block[j],function(k)  m[partition[[j]][k]])
     subdivision[[j]] <- lapply(1:dim_block[j],function(k) matrix(seq(0, 1, by = 1/(m[partition[[j]][k]]-1)), ncol = 1))
-    #names(subdivision[[j]]) <- names(subdivision[[j]]) <- paste("x", partition[[j]], sep = "")
+   
+    names(partition[[j]]) <- names(subdivision[[j]]) <-
+      names(subdivision_size[[j]]) <- paste("var", partition[[j]], sep = "")
+    
   }
-  names(subdivision) <- names(subdivision) <- names(partition) <- paste("block", 1:nblock, sep = "")
     
   # creating some lists for the model
   
   localParam <- list(subdivision = subdivision, subdivision_size = subdivision_size,
-                     sampler = "ExpT", nblock = nblock, partition = partition, dim_block = dim_block, 
+                     sampler = "ExpT", nblocks = nblocks, partition = partition, dim_block = dim_block, 
                      samplingParams = c(thinning = 1, burn.in = 1, scale = 0.1))
   
   ##Constraints 
   
-  constrFlags <- rep(1, nblock) # to be checked later 
+  constrFlags <- rep(1, nblocks) # to be checked later 
   
-  kernParam <- constrParam <- vector("list", nblock)
-  kernParam$type <- "matern52"
-  kernParam$par <- vector("list", nblock)
-  names(constrParam) <- names(kernParam$par) <- paste("block", 1:nblock, sep = "")
-  for (j in 1:nblock) { # to be checked later! We will focus on the monotonicity constraint
+  kernParam <- constrParam <- vector("list", nblocks)
+  kernParam$type <- "matern52" # to consider different kernels per blocks
+  kernParam$par <- vector("list", nblocks)
+  names(constrParam) <- names(kernParam$par) <- paste("block", 1:nblocks, sep = "")
+  for (j in 1:nblocks) { # to be checked later! We will focus on the monotonicity constraint
     kernParam$par[[j]] <- c(sigma2 = 1^2, theta = rep(0.1, dim_block[j]))
     switch (constrType[j],
             boundedness = {
@@ -124,25 +132,25 @@ create.lineqBAGP <- function(x, y, constrType,
   constrIdx <- which(constrFlags == 1) # to be checked !!
   # creating the full list for the model
   model <- list(x = x, y = y, constrType = constrType,  subdivision = subdivision,
-                d = d,  nugget = 1e-9, 
+                d = d,  nugget = 1e-6, 
                 constrIdx = constrIdx, constrParam = constrParam,
-                varnoise = 0,  localParam = localParam, kernParam = kernParam)
+                varnoise = 0.05*sd(y)^2,  localParam = localParam, kernParam = kernParam)
   return(model)
 }
 
 #' @title Augmenting Method for the \code{"lineqBAGP"} S3 Class
 #' @description Augmenting method for the \code{"lineqBAGP"} S3 class.
 #' 
-#' @param x an object with class \code{lineqGP}
-#' @param ... further arguments passed to or from other methods
+#' @param x An object with class \code{lineqBAGP}.
+#' @param ... further arguments passed to or from other methods.
 #' 
-#' @return An expanded \code{"lineqGP"} object with the following additional elements
+#' @return An expanded \code{"lineqBAGP"} An object with the following additional elements.
 #' 
 #' \item{Phi}{a matrix corresponding to the hat basis functions.
 #' The basis functions are indexed by rows}
-#' \item{kernel$Param an object indicating for each variable the associated kernel} #will evolve
+#' \item{kernel$Param}{an object indicating for each variable the associated kernel} #will evolve
 #' \item{Gamma.var}{a list of list of matrix where Gamma.var[[j]][[k]][i] is 
-#' the covariance matrix of the 1D GP with kernel kernel$Param[[j]][[k]] for the points $x^{(1)}_{\sigma(i)},..., x^{n}_{\sigma(i)}}$.
+#' the covariance matrix of the 1D GP with kernel kernel$Param[[j]][[k]] for the points \eqn{x^{(1)}_{\sigma(i)},..., x^{n}_{\sigma(i)}}}.
 #' \item{(Lambda,lb,ub)}{the linear system of inequalities.}
 #' \item{...}{further parameters passed to or from other methods.}
 #'
@@ -157,7 +165,7 @@ create.lineqBAGP <- function(x, y, constrType,
 #' @seealso \code{\link{create.lineqBAGP}}, \code{\link{predict.lineqBAGP}},
 #'          \code{\link{simulate.lineqBAGP}}
 #'          
-#' @author A. F. Lopez-Lopera
+#' @author M. Deronzier and A. F. Lopez-Lopera
 #'
 #' @references A. F. Lopez-Lopera (2019),
 #' "Gaussian process modelling under inequality constraints".
@@ -165,30 +173,31 @@ create.lineqBAGP <- function(x, y, constrType,
 #' <https://tel.archives-ouvertes.fr/tel-02863891>
 #' 
 #' @examples
-#' # creating the model
-#' d <- 2
-#' fun1 <- function(x) return(4*(x-0.5)^2)
-#' fun2 <- function(x) return(2*x)
-#' targetFun <- function(x) return(fun1(x[, 1]) + fun1(x[, 2])) 
-#' xgrid <- expand.grid(seq(0, 1, 0.01), seq(0, 1, 0.01))
-#' ygrid <- targetFun(xgrid)
-#' xdesign <- rbind(c(0.5, 0), c(0.5, 0.5), c(0.5, 1), c(0, 0.5), c(1, 0.5))
-#' ydesign <- targetFun(xdesign)
-#' model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
-#'                 constrType = c("convexity", "monotonicity"), m = 50)
 #' 
-#' # updating and expanding the model
-#' model$kernParam[[1]]$par <- c(1, 0.2)
-#' model$kernParam[[2]]$par <- c(1, 0.2)
-#' model$nugget <- 1e-9
-#' model$varnoise <- 1e-5
+#' # synthetic data
+#' targetFun <- function(x)  return(x[, 1]*x[, 3] + x[, 2])
+#' 
+#' d <- 3 # nb of dimensions
+#' nblocks <- 2 # nb of blocks
+#' 
+#' nbdesign <- 4
+#' xdesign <- matrix(runif(nbdesign*d), nbdesign, d)
+#' ydesign <- targetFun(xdesign)
+#' 
+#' # creating the model
+#' model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
+#'                 constrType = rep("monotonicity", nblocks),
+#'                 partition = list(c(1,3), 2),
+#'                 m = c(5, 3, 4))
+#'                 
+#' # computing some matrices used in the "lineqBAGP" model
 #' model <- augment(model)
 #' str(model)
 #'
 #' @importFrom broom augment
 #' @export
 
-augment.lineqBAGP<- function(x, ...) {
+augment.lineqBAGP <- function(x, ...) {
   model <- x
   if (!("nugget" %in% names(model)))
     model$nugget <- 0
@@ -200,27 +209,27 @@ augment.lineqBAGP<- function(x, ...) {
   
   # passing some terms from the model
   x <- model$x
-  nblock <- model$localParam$nblock
+  nblocks <- model$localParam$nblocks
   dim_block <- model$localParam$dim_block
   partition <- model$localParam$partition
   subdivision <- model$subdivision
   subdivision_size <- model$localParam$subdivision_size
   nknots <- model$localParam$nknots <- sum(sapply(subdivision_size, prod))
   
-  #' Beginning of the construction of the two matrices Gamma and Phi which will 
-  #' help us to express the law of the gaussian vector from the conditional law.
+  # Beginning of the construction of the two matrices Gamma and Phi which will 
+  # help us to express the law of the Gaussian vector from the conditional law.
   
-  Gamma.var <- Gamma_var(subdivision, model$kernParam$par, model$kernParam$type, dim_block, nblock)
-  Phi.var <- Phi_per_var(subdivision,partition,dim_block,x)
+  Gamma.var <- Gamma_var(subdivision, model$kernParam$par, model$kernParam$type)
+  Phi.var <- Phi_per_var(subdivision, partition, x)
   
   model$Gamma.var <- Gamma.var
   model$Phi.var <- Phi.var
   
   # precomputing the linear system for the QP solver and MCMC samplers
-  M.block <- g.block <- vector("list", nblock)
-  m.block <- rep(0, nblock)
-  names(M.block) <- names(g.block) <- names(m.block) <- paste("block", 1:nblock, sep = "")
-  for (j in 1:nblock) {
+  M.block <- g.block <- vector("list", nblocks)
+  m.block <- rep(0, nblocks)
+  names(M.block) <- names(g.block) <- names(m.block) <- paste("block", 1:nblocks, sep = "")
+  for (j in 1:nblocks) {
     if (model$constrType[j] == "linear") { #to be checked!
       if (!("Lambda" %in% names(model)))
         stop('matrix Lambda is not defined')
@@ -259,22 +268,22 @@ augment.lineqBAGP<- function(x, ...) {
   model$localParam$m.block <- m.block # for HMC sampler
 
   model$lineqSys$M <- eval(parse(text = paste("bdiag(",
-                                              paste("M.block[[", 1:nblock, "]]", sep = "", collapse = ","),
+                                              paste("M.block[[", 1:nblocks, "]]", sep = "", collapse = ","),
                                               ")", sep = "")))
   model$lineqSys$M <- matrix(model$lineqSys$M, ncol = nknots)
   model$lineqSys$g <- matrix(unlist(model$lineqSys$g.block), ncol = 1)
   
   model$lineqSys$Lambda <- eval(parse(text = paste("bdiag(",
-                                                   paste("model$constrParam[[", 1:nblock, "]]$Lambda",
+                                                   paste("model$constrParam[[", 1:nblocks, "]]$Lambda",
                                                          sep = "", collapse = ","),
                                                       ")", sep = "")))
   model$lineqSys$Lambda <- matrix(model$lineqSys$Lambda, ncol = nknots)
   model$lineqSys$lb <- eval(parse(text = paste("c(",
-                                               paste("model$constrParam[[", 1:nblock, "]]$lb",
+                                               paste("model$constrParam[[", 1:nblocks, "]]$lb",
                                                      sep = "", collapse = ","),
                                                ")", sep = "")))
   model$lineqSys$ub <- eval(parse(text = paste("c(",
-                                               paste("model$constrParam[[", 1:nblock, "]]$ub",
+                                               paste("model$constrParam[[", 1:nblocks, "]]$ub",
                                                      sep = "", collapse = ","),
                                                ")", sep = "")))
 
@@ -298,16 +307,16 @@ augment.lineqBAGP<- function(x, ...) {
 #' \item{mu}{the unconstrained GP mean predictor}
 #' \item{Sigma}{the unconstrained GP prediction conditional covariance matrix}
 #' \item{xi.map}{the GP maximum a posteriori (MAP) predictor given the inequality constraints}
-#' \item{Gamma} Matrix representing \eqn{k_{S}(\xi,\xi)}
-#' \item{Gamma.block} Gamma represented per block as a list of matrices
-#' \item{Phi} Matrix representing \eqn{\Phi}
-#' \item{Phi.block} Phi represented per block as a list of matrices
-#' \item{t_phi} The transpose of Phi
-#' \item{t_Phi.block} t_Phi represented per block as a list of matrices
-#' \item{invSigma} The covariance matrix of the gaussian vector 
-#' \item{y.mean} Prediction of x knowing that 
-#' \item{mid.term} The mid term is computed
-#' \item{xi.mode}
+#' \item{Gamma}{ Matrix representing \eqn{k_{S}(\xi,\xi)}}
+#' \item{Gamma.block}{ Gamma represented per block as a list of matrices}
+#' \item{Phi}{ Matrix representing \eqn{\Phi}}
+#' \item{Phi.block}{ Phi represented per block as a list of matrices}
+#' \item{t_phi}{ The transpose of Phi}
+#' \item{t_Phi.block}{ t_Phi represented per block as a list of matrices}
+#' \item{invSigma}{ The covariance matrix of the gaussian vector }
+#' \item{y.mean}{Prediction of x knowing that }
+#' \item{mid.term}{ The mid term is computed}
+#' \item{xi.mode}{Mode of the truncated Gaussian vector}
 #' @details The posterior paramaters of the finite-dimensional GP with linear inequality
 #' constraints are computed. Here, \eqn{\boldsymbol{\xi}}{\xi} is a centred Gaussian
 #' vector with covariance \eqn{\boldsymbol{\Gamma}}{\Gamma}, s.t.
@@ -319,7 +328,7 @@ augment.lineqBAGP<- function(x, ...) {
 #' @seealso \code{\link{create.lineqBAGP}}, \code{\link{augment.lineqBAGP}},
 #'          \code{\link{simulate.lineqBAGP}}
 #'          
-#' @author A. F. Lopez-Lopera
+#' @author M. Deronzier and A. F. Lopez-Lopera
 #'
 #' @references A. F. Lopez-Lopera (2019),
 #' "Gaussian process modelling under inequality constraints".
@@ -327,39 +336,44 @@ augment.lineqBAGP<- function(x, ...) {
 #' <https://tel.archives-ouvertes.fr/tel-02863891>
 #'
 #' @examples
-#' library(plot3D)
-#' # creating the model
-#' d <- 2
-#' fun1 <- function(x) return(4*(x-0.5)^2)
-#' fun2 <- function(x) return(2*x)
-#' targetFun <- function(x) return(fun1(x[, 1]) + fun2(x[, 2])) 
-#' xgrid <- expand.grid(seq(0, 1, 0.01), seq(0, 1, 0.01))
-#' ygrid <- targetFun(xgrid)
-#' xdesign <- rbind(c(0.5, 0), c(0.5, 0.5), c(0.5, 1), c(0, 0.5), c(1, 0.5))
-#' ydesign <- targetFun(xdesign)
-#' model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
-#'                 constrType = c("convexity", "monotonicity"), 10)
 #' 
-#' # updating and expanding the model
-#' model$kernParam[[1]]$type <- "matern52"
-#' model$kernParam[[2]]$type <- "matern52"
-#' model$kernParam[[1]]$par <- c(1, 0.2)
-#' model$kernParam[[2]]$par <- c(1, 0.3)
-#' model$nugget <- 1e-9
-#' model$varnoise <- 1e-5
+#' # synthetic data
+#' d <- 3 # number of active input variables
+#' partition <- list(c(1,3), 2) # partition of the block structure
+#' nblocks <- length(partition) # nb of blocks
+#' 
+#' targetFun <- function(x, partition)
+#'   return(x[, partition[[1]][1]]*x[, partition[[1]][2]] + x[, partition[[2]][1]])
+#' 
+#' # building a random design 
+#' nbdesign <- 6*d
+#' xdesign <- matrix(runif(nbdesign*d), nbdesign, d)
+#' ydesign <- targetFun(xdesign, partition)
+#' 
+#' # defining the 3D grid for predictions 
+#' n1D <- 20
+#' xbase <- seq(0, 1, length = n1D)
+#' xtest <- as.matrix(expand.grid(xbase, xbase, xbase))
+#' ytest <- targetFun(xtest, partition)
 #'
-#' # predictions from the model
-#' ntest <- 25
-#' xtest  <- cbind(seq(0, 1, length = ntest), seq(0, 1, length = ntest))
-#' ytest <- targetFun(xtest)
+#' # creating the model
+#' model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
+#'                 constrType = rep("monotonicity", nblocks), 
+#'                 partition = partition,
+#'                 m = c(5, 3, 4))
+#'
+#' # modifying the covariance parameters of each block
+#' for (k in 1:nblocks)
+#'   model$kernParam$par[[k]] <- c(1, rep(0.1, model$localParam$dim_block[k]))
+#'
+#' # computing the unconstrained GP mean and the constrained GP mode
 #' pred <- predict(model, xtest)
-#' persp3D(x = unique(xtest[, 1]), y = unique(xtest[, 2]),
-#'         z = outer(c(pred$Phi.test[[1]] %*% pred$xi.map[[1]]),
-#'                   c(pred$Phi.test[[2]] %*% pred$xi.map[[2]]), "+"),
-#'         xlab = "x1", ylab = "x2", zlab = "mode(x1,x2)", zlim = c(0, 3),
-#'         phi = 20, theta = -30, alpha = 1, colkey = FALSE)
-#' points3D(x = xdesign[,1], y = xdesign[,2], z = ydesign, col = "black", pch = 19, add = TRUE)
 #'
+#' # Q2 criterion
+#' var_design <- mean((ytest- mean(ytest))^2)
+#' message("Unconstrained GP mean: ", 1 - mean((ytest- pred$y.mean)^2)/var_design)
+#' message("Constrained GP mode: ", 1 - mean((ytest- pred$y.mode)^2)/var_design)
+#' 
 #' @importFrom quadprog solve.QP
 #' @importFrom Matrix bdiag
 #' @import plot3D
@@ -369,7 +383,7 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   if (!is.matrix(xtest))
     xtest <- matrix(xtest, ncol = model$d)
   
-  nblock <- model$localParam$nblock
+  nblocks <- model$localParam$nblocks
   dim_block <- model$localParam$dim_block
   subdivision <- model$localParam$subdivision
   subdivision_size <- model$localParam$subdivision_size
@@ -387,21 +401,21 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   
   # The real block matrices
   
-  Gamma.block <- Gamma_var_to_tensor(model$Gamma.var, dim_block, nblock)
-  Gamma <- block_to_vect(Gamma.block)
-  #nugget.block <- lapply(1:nblock, function(x) 1e-9*diag(block_tensor_size[x]))
+  Gamma.block <- Gamma_var_to_tensor(model$Gamma.var)
+  Gamma <- block_to_matrix(Gamma.block, "bdiag")
+  #nugget.block <- lapply(1:nblocks, function(x) 1e-9*diag(block_tensor_size[x]))
   #Gamma.block <- block_sum(Gamma.block,nugget.block)
   
-  Phi.block <- Phi_var_to_tensor(model$Phi.var, subdivision, subdivision_size, dim_block)
-  Phi <- block_to_vect(Phi.block,"line")
+  Phi.block <- Phi_var_to_tensor(model$Phi.var)
+  Phi <- block_to_matrix(Phi.block, "cbind")
   t_Phi.block <- block_transpose(Phi.block)
-  t_Phi <- block_to_vect(t_Phi.block, "column")
+  t_Phi <- block_to_matrix(t_Phi.block, "rbind")
     
   # One Block matrix for testing our results
   
-  #Phi.test.var <- Phi_per_var(subdivision,partition,dim_block,xtest)
-  #Phi.test.block <- Phi_var_to_tensor(Phi.test.var, subdivision, subdivision_size, dim_block)
-  pred$Phi.test <- Phi.test <- block_to_vect(Block_Phi(xtest,partition,subdivision,subdivision_size, dim_block),"line")
+  #Phi.test.var <- Phi_per_var(subdivision,xtest)
+  #Phi.test.block <- Phi_var_to_tensor(Phi.test.var, subdivision)
+  pred$Phi.test <- Phi.test <- block_to_matrix(Block_Phi(subdivision, partition, xtest), "cbind")
   
   
   #The cholesky decomposition to stabilize the inverse operation
@@ -410,26 +424,28 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   invGamma.block <- block_chol2inv(cholGamma.block)
   
   #Computation of the conditional covariance matrix of the vector 
-  
-  invSigma <- block_to_vect(invGamma.block) + inv_tau*t_Phi%*%Phi
+  t_PhiPhi <- t_Phi%*%Phi
+  invSigma <- block_to_matrix(invGamma.block, "bdiag") + inv_tau*t_PhiPhi
   
   #Computation of the mean vector for the conditional vector law, according to the 
   #complexity study we have two cases to optimize the computation
   
   In <- diag(nobs)  
-  Gammat_Phi.block <- block_prod(Gamma.block,t_Phi.block)
-  Gammat_Phi <- block_to_vect(Gammat_Phi.block,"column")
+  Gammat_Phi.block <- block_prod(Gamma.block, t_Phi.block)
+  Gammat_Phi <- block_to_matrix(Gammat_Phi.block, "rbind")
   
   #Computation of the inverse of the mid term in the most efficient way
   if (nobs<=2*nknots) {
-    mid.term <- chol2inv(chol(model$varnoise*In+block_to_vect(block_prod(Phi.block,Gammat_Phi.block),"sum")))
+    mid.term <- chol2inv(chol(block_to_matrix(block_prod(Phi.block, Gammat_Phi.block), "sum") + 
+                                                model$varnoise*In))
   } else {
-    mid.term <- inv_tau*(In-inv_tau*Phi%*%chol2inv(chol(block_to_vect(invGamma.block)+inv_tau*t_PhiPhi))%*%t_Phi)
+    mid.term <- inv_tau*(In-inv_tau*Phi %*%
+                           chol2inv(chol(block_to_matrix(invGamma.block) + inv_tau*t_PhiPhi, "bdiag")) %*% t_Phi)
   }
-  Gammat_Phimid.term <- Gammat_Phi%*%mid.term
-  xi.mean <- Gammat_Phimid.term%*%ydesign
+  Gammat_Phimid.term <- Gammat_Phi %*% mid.term
+  xi.mean <- Gammat_Phimid.term %*% model$y
   pred$xi.mean <- xi.mean
-  pred$Sigma <- Gamma - Gammat_Phimid.term%*%t(Gammat_Phi)
+  pred$Sigma <- Gamma - Gammat_Phimid.term %*% t(Gammat_Phi)
   
   # pred$Sigma <- chol2inv(chol(invSigma))
 
@@ -475,7 +491,7 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
 #' @seealso \code{\link{create.lineqBAGP}}, \code{\link{augment.lineqBAGP}},
 #'          \code{\link{predict.lineqBAGP}}
 #'          
-#' @author A. F. Lopez-Lopera
+#' @author M. Deronzier and A. F. Lopez-Lopera
 #'
 #' @references A. F. Lopez-Lopera (2019),
 #' "Gaussian process modelling under inequality constraints".
@@ -483,39 +499,44 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
 #' <https://tel.archives-ouvertes.fr/tel-02863891>
 #'
 #' @examples
-#' library(plot3D)
-#' # creating the model
-#' d <- 2
-#' fun1 <- function(x) return(4*(x-0.5)^2)
-#' fun2 <- function(x) return(2*x)
-#' targetFun <- function(x) return(fun1(x[, 1]) + fun2(x[, 2])) 
-#' xgrid <- expand.grid(seq(0, 1, 0.01), seq(0, 1, 0.01))
-#' ygrid <- targetFun(xgrid)
-#' xdesign <- rbind(c(0.5, 0), c(0.5, 0.5), c(0.5, 1), c(0, 0.5), c(1, 0.5))
-#' ydesign <- targetFun(xdesign)
-#' model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
-#'                 constrType = c("convexity", "monotonicity"), m = 10)
 #' 
-#' # updating and expanding the model
-#' model$kernParam[[1]]$type <- "matern52"
-#' model$kernParam[[2]]$type <- "matern52"
-#' model$kernParam[[1]]$par <- c(1, 0.2)
-#' model$kernParam[[2]]$par <- c(1, 0.3)
-#' model$nugget <- 1e-9
-#' model$varnoise <- 1e-5
+#' # synthetic data
+#' d <- 3 # number of active input variables
+#' partition <- list(c(1,3), 2) # partition of the block structure
+#' nblocks <- length(partition) # nb of blocks
+#' 
+#' targetFun <- function(x, partition)
+#'   return(x[, partition[[1]][1]]*x[, partition[[1]][2]] + x[, partition[[2]][1]])
+#' 
+#' # building a random design 
+#' nbdesign <- 6*d
+#' xdesign <- matrix(runif(nbdesign*d), nbdesign, d)
+#' ydesign <- targetFun(xdesign, partition)
+#' 
+#' # defining the 3D grid for predictions 
+#' n1D <- 20
+#' xbase <- seq(0, 1, length = n1D)
+#' xtest <- as.matrix(expand.grid(xbase, xbase, xbase))
+#' ytest <- targetFun(xtest, partition)
 #'
-#' # sampling from the model
-#' ntest <- 25
-#' xtest  <- cbind(seq(0, 1, length = ntest), seq(0, 1, length = ntest))
-#' ytest <- targetFun(xtest)
-#' sim.model <- simulate(model, nsim = 1e3, seed = 1, xtest = xtest)
-#' PhiAll.test <- cbind(sim.model$Phi.test[[1]][rep(1:ntest, times = ntest), ],
-#'                      sim.model$Phi.test[[2]][rep(1:ntest, each = ntest), ])
-#' persp3D(x = unique(xtest[, 1]), y = unique(xtest[, 2]),
-#'         z = matrix(rowMeans(PhiAll.test %*% sim.model$xiAll.sim), ntest, ntest),
-#'         xlab = "x1", ylab = "x2", zlab = "mode(x1,x2)", zlim = c(0, 3),
-#'         phi = 20, theta = -30, alpha = 1, colkey = FALSE)
-#' points3D(x = xdesign[,1], y = xdesign[,2], z = ydesign, col = "black", pch = 19, add = TRUE)
+#' # creating the model
+#' model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
+#'                 constrType = rep("monotonicity", nblocks), 
+#'                 partition = partition,
+#'                 m = c(5, 3, 4))
+#'
+#' # modifying the covariance parameters of each block
+#' for (k in 1:nblocks)
+#'   model$kernParam$par[[k]] <- c(1, rep(0.1, model$localParam$dim_block[k]))
+#'   
+#' # simulating constrained MCMC samples
+#' model.sim <- simulate(model, 1e2, seed = 1, xtest)
+#'
+#' # Q2 criterion
+#' var_design <- mean((ytest- mean(ytest))^2)
+#' message("Unconstrained GP mean: ", 1 - mean((ytest- model.sim$y.mean)^2)/var_design)
+#' message("Constrained GP mode: ", 1 - mean((ytest- model.sim$y.mode)^2)/var_design)
+#' message("Constrained GP mean via MCMC: ", 1 - mean((ytest- rowMeans(model.sim$y.sim))^2)/var_design)
 #'
 #' @importFrom stats simulate
 #' @import plot3D
@@ -528,7 +549,7 @@ simulate.lineqBAGP <- function(object, nsim = 1, seed = NULL, xtest, ...) {
   model <- pred$model
   pred$model <- NULL
   
-  nblock <- model$localParam$nblock
+  nblocks <- model$localParam$nblocks
   
   eta.mode <- as.vector(model$lineqSys$Lambda %*% pred$xi.mode)
   Sigma.eta <- model$lineqSys$Lambda %*% pred$Sigma %*% t(model$lineqSys$Lambda)
