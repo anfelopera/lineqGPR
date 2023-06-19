@@ -250,7 +250,7 @@ Gamma_var_to_tensor <- function(Gamma.perVar) {#, dim_block, J){
 block_compute <- function(A,
                           operation = c("sum", "prod", "transpose",
                                         "chol", "inv", "chol2inv",
-                                        "scalarMatMul"),
+                                        "scalarMatMul", "det"),
                           B = NULL, alpha = 1, beta = 1) {
   operation <- match.arg(operation)
   switch (operation,
@@ -268,6 +268,8 @@ block_compute <- function(A,
       return (lapply(A, function(x) chol2inv(chol(x))))
     }, scalarMatMul = {
       return(lapply(A, function(x) alpha*x)) 
+    }, det = {
+      return (sapply(A, function(x) det(x)))
     }
   )
 }

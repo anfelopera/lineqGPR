@@ -47,14 +47,21 @@ for (k in 1:nblocks)
 model$localParam$sampler <- "HMC"
 model$nugget <- 1e-5
 
-# model_temp <- lineqGPOptim(model,
-#                            additive = TRUE,
-#                            block = TRUE,
-#                            partition = list(c(1,3), 2),
-#                            estim.varnoise = TRUE, # to add this info at the MaxMod level
-#                            bounds.varnoise = c(1e-7, Inf), # to add this info at the MaxMod level
-#                            lb = rep(1e-2, model_temp$d+1), ub = c(Inf, rep(1, model_temp$d)) # to add this info at the MaxMod level
-# )
+model <- lineqGPOptim(model,
+                      additive = TRUE,
+                      block = TRUE,
+                      estim.varnoise = TRUE, # to add this info at the MaxMod level
+                      bounds.varnoise = c(1e-7, Inf), # to add this info at the MaxMod level
+                      lb = rep(1e-2, model$d+model$localParam$nblocks),
+                      ub = c(Inf, 0.7, 0.7, Inf, 0.7), # to add this info at the MaxMod level
+                      # ub = rep(Inf, model$d+model$localParam$nblocks),
+                      opts = list(algorithm = "NLOPT_LD_MMA",
+                                  #algorithm = "NLOPT_LN_COBYLA",
+                                  print_level = 3,
+                                  ftol_abs = 1e-3,
+                                  maxeval = 50,
+                                  check_derivatives = TRUE)
+)
 
 pred <- predict(model, xtest)
 model.sim <- simulate(model, 1e3, seed = 1, xtest)

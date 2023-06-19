@@ -102,10 +102,11 @@ create.lineqBAGP <- function(x, y, constrType,
   
   constrFlags <- rep(1, nblocks) # to be checked later 
   
-  kernParam <- constrParam <- vector("list", nblocks)
+  kernParam <- list()
   kernParam$type <- "matern52" # to consider different kernels per blocks
   kernParam$par <- vector("list", nblocks)
-  names(constrParam) <- names(kernParam$par) <- paste("block", 1:nblocks, sep = "")
+  constrParam <- vector("list", nblocks)
+  names(constrParam) <- paste("block", 1:nblocks, sep = "")
   for (j in 1:nblocks) { # to be checked later! We will focus on the monotonicity constraint
     kernParam$par[[j]] <- c(sigma2 = 1^2, theta = rep(0.1, dim_block[j]))
     switch (constrType[j],
@@ -440,7 +441,7 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
                                 model$varnoise*In))
   } else {
     mid.term <- inv_tau*(In-inv_tau*Phi %*%
-                           chol2inv(chol(block_to_matrix(invGamma.block) + inv_tau*t_PhiPhi, "bdiag")) %*% t_Phi)
+                           chol2inv(chol(block_to_matrix(invGamma.block) + inv_tau*t_PhiPhi)) %*% t_Phi)
   }
   Gammat_Phimid.term <- Gammat_Phi %*% mid.term
   xi.mean <- Gammat_Phimid.term %*% model$y
