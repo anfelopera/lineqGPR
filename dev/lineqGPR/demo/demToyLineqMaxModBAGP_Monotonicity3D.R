@@ -39,14 +39,13 @@ ytest <- targetFun(xtest, partition)
 model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
                 constrType = rep("monotonicity", nblocks), 
                 partition = partition,
-                m = c(5, 3, 4))
+                m = c(4, 3, 5))
 
 # modifying the covariance parameters of each block
 for (k in 1:nblocks)
-  model$kernParam$par[[k]] <- c(1, rep(0.1, model$localParam$dim_block[k]))
-
-# model$localParam$sampler <- "HMC"
-# model$nugget <- 1e-5
+  model$kernParam$par[[k]] <- c(1, rep(0.5, model$localParam$dim_block[k]))
+model$localParam$sampler <- "HMC"
+model$nugget <- 1e-5
 
 # model_temp <- lineqGPOptim(model,
 #                            additive = TRUE,
@@ -57,21 +56,22 @@ for (k in 1:nblocks)
 #                            lb = rep(1e-2, model_temp$d+1), ub = c(Inf, rep(1, model_temp$d)) # to add this info at the MaxMod level
 # )
 
-
 pred <- predict(model, xtest)
-model.sim <- simulate(model, 1e2, seed = 1, xtest)
+model.sim <- simulate(model, 1e3, seed = 1, xtest)
 
+# Q2 criterion
+var_design <- mean((ytest- mean(ytest))^2)
+message("Unconstrained GP mean: ", 1 - mean((ytest- pred$y.mean)^2)/var_design)
+message("Constrained GP mode: ", 1 - mean((ytest- pred$y.mode)^2)/var_design)
+message("Constrained GP mean via MCMC: ", 1 - mean((ytest- rowMeans(model.sim$y.sim))^2)/var_design)
 
 
 par(mfrow = c(2,2), mar=c(1.5,1.5,1.5,1))
-plot(ytest, pred$y.mean, main = 1 - sum((ytest- pred$y.mean)^2)/sum((ytest- mean(ytest))^2))
-plot(ytest, pred$y.mode, main = 1 - sum((ytest- pred$y.mode)^2)/sum((ytest- mean(ytest))^2))
-plot(ytest, rowMeans(model.sim$y.sim), main = 1 - sum((ytest- rowMeans(model.sim$y.sim))^2)/sum((ytest- mean(ytest))^2))
-
-
+plot(ytest, pred$y.mean, main = paste("Q2 = ", 1 - mean((ytest- pred$y.mean)^2)/var_design))
+plot(ytest, pred$y.mode, main = paste("Q2 = ", 1 - mean((ytest- pred$y.mode)^2)/var_design))
+plot(ytest, rowMeans(model.sim$y.sim), main = paste("Q2 = ", 1 - mean((ytest- rowMeans(model.sim$y.sim))^2)/var_design))
 
 mean((as.matrix(ydesign) - predict(model, xdesign)$y.mean)^2)
-mean((as.matrix(ydesign) - predict(model, xdesign)$y.mode)^2)
 mean((as.matrix(ydesign) - predict(model, xdesign)$y.mode)^2)
 
 colormap <- rev(viridis(1e2))
