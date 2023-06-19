@@ -149,6 +149,7 @@ Gamma_var <- function(subdivision, par, type) {
                                                 type = type[[j]][k],
                                                 par = par[[j]][c(1, k+1)]))
       names(Gamma.perVar[[j]]) <- names(subdivision[[j]])
+      attr(Gamma.perVar[[j]], "par") = par[[j]]
     }
   } else if (length(type) == length(subdivision)) {
     for (j in 1:nblocks) {
@@ -158,6 +159,7 @@ Gamma_var <- function(subdivision, par, type) {
                                                 type = type[j],
                                                 par = par[[j]][c(1, k+1)]))
       names(Gamma.perVar[[j]]) <- names(subdivision[[j]])
+      attr(Gamma.perVar[[j]], "par") = par[[j]]
     }
   } else if (length(type) == 1) {
     for (j in 1:nblocks) {
@@ -167,6 +169,7 @@ Gamma_var <- function(subdivision, par, type) {
                                                 type = type,
                                                 par = par[[j]][c(1, k+1)]))
       names(Gamma.perVar[[j]]) <- names(subdivision[[j]])
+      attr(Gamma.perVar[[j]], "par") = par[[j]]
     }
   } else {
     stop("The argument 'type' must be a list with the same structure of the
@@ -192,107 +195,82 @@ Gamma_var_to_tensor <- function(Gamma.perVar) {#, dim_block, J){
   dim_block <- sapply(Gamma.perVar, function(x) length(x))
   Gamma.perBlock <- list("vector", nblocks)
   names(Gamma.perBlock) <- paste("block", 1:nblocks, sep = "")
-  for(j in 1:nblocks)
-    Gamma.perBlock[[j]] <- eval(parse(text = paste("Gamma.perVar[[j]][[",
+  for(j in 1:nblocks) {
+    params <- attr(Gamma.perVar[[j]], "par")
+    Gamma.perBlock[[j]] <- eval(parse(text = paste("(Gamma.perVar[[j]][[",
                                                    1:dim_block[j],
-                                                   "]]", sep = "", collapse = "%x%")))
+                                                   "]]/params[1])", sep = "", collapse = "%x%")))
+    Gamma.perBlock[[j]] <- params[1]*Gamma.perBlock[[j]]
+    
+    if (dim_block[[j]] > 1) {
+      expr <- matrix(paste("Gamma.perVar[[j]][[", seq(dim_block[[j]]),"]]", sep = ""),
+                     dim_block[[j]], dim_block[[j]], byrow = TRUE)
+      diag(expr) <- paste("attr(Gamma.perVar[[j]][[", seq(dim_block[[j]]),
+                          "]], 'gradient')[[2]]", sep = "")
+      for (i in seq(dim_block[[j]]+1)) {
+        if (i == 1) {
+          gradGammaTemp <- Gamma.perBlock[[j]]/params[1]
+          attr(Gamma.perBlock[[j]], "gradient")$sigma2 <- gradGammaTemp
+        } else {
+          expr2 <- paste(expr[i-1, ], collapse = " %x% ")
+          gradGammaTemp <- eval(parse(text = expr2))
+          attr(Gamma.perBlock[[j]], "gradient")[[i]] <- gradGammaTemp/params[1]^(dim_block[[j]]-1)
+        }
+      }
+      names(attr(Gamma.perBlock[[j]], "gradient")) <- c("sigma2", paste("theta", seq(dim_block[[j]]), sep = ""))
+    }
+    attr(Gamma.perBlock[[j]], "derivative") <- NULL
+    attr(Gamma.perBlock[[j]], "par") <- params
+  }
+    
+    
+  
+  
+  
+  
   return(Gamma.perBlock)
 }
 
 #### some basic operations for block lists ####
 
-#' @title Elementwise product of two lists of matrices
-#' @description Compute the elementwise product of two lists of matrices.
+#' @title Computation of elementwise operations of lists of matrices
+#' @description Compute an elementwise operation to a list (or two lists) of matrices.
 #' 
 #' @param A A list containing matrices.
-#' @param B A list containing matrices.
-#' @return A list containing the elementwise product.
-#'
-#' @author M. Deronzier and A. F. Lopez-Lopera
-#' 
-#' @export
-block_prod <- function(A, B)
-  return (lapply(1:length(A), function(x) A[[x]] %*% B[[x]]))
-
-#' @title Elementwise Cholesky of a list of matrices
-#' @description Compute the elementwise Cholesky of a list of matrices.
-#' 
-#' @param A A list containing inversible matrices.
-#' @return A list containing the elementwise Cholesky decomposition of \eqn{A}.
-#'
-#' @author M. Deronzier and A. F. Lopez-Lopera
-#' 
-#' @export
-block_chol <- function(A)
-  return (lapply(A, function(x) chol(x)))
-
-#' @title Elementwise inversion of a list of Cholesky matrices
-#' @description Compute the elementwise inversion a list of Cholesky matrices via 
-#' Cholesky decomposition.
-#' 
-#' @param A A list containing Cholesky matrices.
-#' @return A list containing the elementwise inverse of \eqn{A}.
-#'
-#' @author M. Deronzier and A. F. Lopez-Lopera
-#' 
-#' @export
-block_chol2inv <- function(A)
-  return (lapply(A, function(x) chol2inv(x)))
-
-#' @title Elementwise inversion of a list of matrices
-#' @description Compute the elementwise inversion of a list of matrices via Cholesky decomposition.
-#' 
-#' @param A A list containing inversible matrices.
-#' @return A list containing the elementwise inverse of \eqn{A}.
-#'
-#' @author M. Deronzier and A. F. Lopez-Lopera
-#' 
-# #' @export
-block_inv <- function(A)
-  return(block_chol2inv(block_chol(A)))
-
-#' @title Elementwise transpose of a list of matrices
-#' @description Compute the elementwise transpose of a list of matrices.
-#' 
-#' @param A A list containing matrices.
-#' @return A list containing the elementwise transpose of \eqn{A}.
-#'
-#' @author M. Deronzier and A. F. Lopez-Lopera
-#' 
-#' @export
-block_transpose <- function(A)
-  return(lapply(A, function(x) t(x)))
-
-#' @title Elementwise linear combination of two lists of matrices
-#' @description Compute the elementwise linear combination of two lists of matrices.
-#' 
-#' @param A A list containing matrices.
+#' @param operation A character string with the operation to be applied.
+#' Options: "sum", "prod", "transpose", "chol", "inv", "chol2inv", "scalarMatMul".
 #' @param B A list containing matrices.
 #' @param alpha A real number.
 #' @param beta A real number.
-#' @return A list containing the elementwise linear combination
-#' \code{alpha x A[[j]] + beta x B[[j]]}.
+#' @return A list after applying the elementwise operation.
 #'
 #' @author M. Deronzier and A. F. Lopez-Lopera
 #' 
 #' @export
-block_sum <- function(A, B, alpha = 1, beta = 1)
-  return(lapply(1:length(A), function(x) alpha*A[[x]]+(beta*B[[x]])))
-
-#' @title Elementwise scalar-matrix product of a list of matrices
-#' @description Compute the elementwise scalar-matrix product of a list of matrices.
-#' 
-#' @param A A list containing matrices.
-#' @param alpha A real number.
-#' @return A list containing the elementwise scalar-matrix product
-#' \eqn{\alpha A_j \ \forall j = 1, \ldots, n}.
-#'
-#' @author M. Deronzier and A. F. Lopez-Lopera
-#' 
-#' @export
-block_mul <- function (alpha, A)
-  return(lapply(A, function(x) alpha*x)) 
-
+block_compute <- function(A,
+                          operation = c("sum", "prod", "transpose",
+                                        "chol", "inv", "chol2inv",
+                                        "scalarMatMul"),
+                          B = NULL, alpha = 1, beta = 1) {
+  operation <- match.arg(operation)
+  switch (operation,
+    sum = {
+      return(lapply(1:length(A), function(x) alpha*A[[x]] + beta*B[[x]]))
+    }, prod = {
+      return (lapply(1:length(A), function(x) A[[x]] %*% B[[x]]))
+    }, transpose = {
+      return(lapply(A, function(x) t(x)))
+    }, chol = {
+      return (lapply(A, function(x) chol(x)))
+    }, chol2inv = {
+      return (lapply(A, function(x) chol2inv(x)))
+    }, inv = {
+      return (lapply(A, function(x) chol2inv(chol(x))))
+    }, scalarMatMul = {
+      return(lapply(A, function(x) alpha*x)) 
+    }
+  )
+}
 
 #### backup of unused fonctions ####
 
@@ -383,14 +361,14 @@ inv_lemma <- function(U, V, W, invZ){
 # # Block case, be careful about matrices we use
 # block_inv_lemma <- function(W, invZ, U, V = NULL){
 #   if(is.null(V)){
-#     inv_ZU <- inv_ZV <- block_prod(invZ,U)
+#     inv_ZU <- inv_ZV <- block_compute(invZ, "prod", U)
 #   }
 #   else{
-#     inv_ZU <- block_prod(invZ, U)
-#     inv_ZV <- block_prod(invZ, V)
+#     inv_ZU <- block_compute(invZ, U, "prod")
+#     inv_ZV <- block_compute(invZ, V, "prod")
 #   }
-#     t_inv_ZV <- block_transpose(inv_ZV)
+#     t_inv_ZV <- block_compute(inv_ZV, "transpose")
 #   return(block_to_matrix(invZ, "diag") - block_to_matrix(WU, "cbind")%*% ## %-%?
-#          chol2inv(chol(block_to_matrix(block_prod(t_inv_ZV,U)), "sum"))%*%
+#          chol2inv(chol(block_to_matrix(block_compute(t_inv_ZV, "prod", U)), "sum"))%*%
 #          block_to_matrix(t_inv_ZV, "rbind"))
 # }

@@ -404,11 +404,11 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   Gamma.block <- Gamma_var_to_tensor(model$Gamma.var)
   Gamma <- block_to_matrix(Gamma.block, "bdiag")
   #nugget.block <- lapply(1:nblocks, function(x) 1e-9*diag(block_tensor_size[x]))
-  #Gamma.block <- block_sum(Gamma.block,nugget.block)
+  #Gamma.block <- block_compute(Gamma.block, "sum", nugget.block)
   
   Phi.block <- Phi_var_to_tensor(model$Phi.var)
   Phi <- block_to_matrix(Phi.block, "cbind")
-  t_Phi.block <- block_transpose(Phi.block)
+  t_Phi.block <- block_compute(Phi.block, "transpose")
   t_Phi <- block_to_matrix(t_Phi.block, "rbind")
     
   # One Block matrix for testing our results
@@ -420,8 +420,8 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   
   #The cholesky decomposition to stabilize the inverse operation
   
-  cholGamma.block <- block_chol(Gamma.block)
-  invGamma.block <- block_chol2inv(cholGamma.block)
+  cholGamma.block <- block_compute(Gamma.block, "chol")
+  invGamma.block <- block_compute(cholGamma.block, "chol2inv")
   
   #Computation of the conditional covariance matrix of the vector 
   t_PhiPhi <- t_Phi%*%Phi
@@ -431,13 +431,13 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   #complexity study we have two cases to optimize the computation
   
   In <- diag(nobs)  
-  Gammat_Phi.block <- block_prod(Gamma.block, t_Phi.block)
+  Gammat_Phi.block <- block_compute(Gamma.block, "prod",  t_Phi.block)
   Gammat_Phi <- block_to_matrix(Gammat_Phi.block, "rbind")
   
   #Computation of the inverse of the mid term in the most efficient way
   if (nobs<=2*nknots) {
-    mid.term <- chol2inv(chol(block_to_matrix(block_prod(Phi.block, Gammat_Phi.block), "sum") + 
-                                                model$varnoise*In))
+    mid.term <- chol2inv(chol(block_to_matrix(block_compute(Phi.block, "prod", Gammat_Phi.block), "sum") + 
+                                model$varnoise*In))
   } else {
     mid.term <- inv_tau*(In-inv_tau*Phi %*%
                            chol2inv(chol(block_to_matrix(invGamma.block) + inv_tau*t_PhiPhi, "bdiag")) %*% t_Phi)
