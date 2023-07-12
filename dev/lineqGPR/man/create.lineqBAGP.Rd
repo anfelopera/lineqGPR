@@ -4,7 +4,7 @@
 \alias{create.lineqBAGP}
 \title{Creation Method for the \code{"lineqBAGP"} S3 Class}
 \usage{
-\method{create}{lineqBAGP}(x, y, constrType, partition = as.list(seq(ncol(x))), m = NULL)
+\method{create}{lineqBAGP}(x, y, constrType, partition = as.list(seq(ncol(x))), subdivision)
 }
 \arguments{
 \item{x}{A vector or matrix with the input data. The dimensions should be indexed by columns}
@@ -52,7 +52,7 @@ ydesign <- targetFun(xdesign)
 model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
                 constrType = rep("monotonicity", nblocks),
                 partition = list(c(1,3), 2),
-                m = c(5, 3, 4))
+                subdivision = list(list(c(0,0.5,1), c(0,0.25,0.5,0.75,0.1)), list(c(0,1)))
 str(model)
 
 }

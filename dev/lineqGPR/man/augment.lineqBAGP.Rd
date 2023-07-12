@@ -18,7 +18,8 @@ An expanded \code{"lineqBAGP"} An object with the following additional elements.
 The basis functions are indexed by rows}
 \item{kernel$Param}{an object indicating for each variable the associated kernel} #will evolve
 \item{Gamma.var}{a list of list of matrix where Gamma.var[[j]][[k]][i] is 
-the covariance matrix of the 1D GP with kernel kernel$Param[[j]][[k]] for the points \eqn{x^{(1)}_{\sigma(i)},..., x^{n}_{\sigma(i)}}}.
+the covariance matrix of the 1D GP with kernel kernel$Param[[j]][[k]] for the points 
+\eqn{x^{(1)}_{\sigma(i)},..., x^{n}_{\sigma(i)}}}.
 \item{(Lambda,lb,ub)}{the linear system of inequalities.}
 \item{...}{further parameters passed to or from other methods.}
 }

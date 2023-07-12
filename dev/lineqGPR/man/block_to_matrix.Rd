@@ -17,11 +17,7 @@ A matrix.
 \description{
 The additivity gives us block matrices, hence we can accelerate
 the computations this is the role of algorithm in this section to facilitate
-the manipulation of matrices of the type \code{list["vector"]} 
-\eqn{\{1, \cdots, D \}} induces a natural bijection from
-\eqn{\{ (j,k), j \in \{1, \cdots, J \}, k \in \{1,\cdots, \mathcal{J}_b\} \} }
-into \eqn{\{1, \cdots, D\}} there is an straight one, \code{partition[[j]][[k]]}
-gives the element \eqn{i} and ...
+the manipulation of matrices of the type \code{list["vector"]}
 }
 \author{
 M. Deronzier and A. F. Lopez-Lopera
