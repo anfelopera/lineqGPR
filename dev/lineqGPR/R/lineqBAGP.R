@@ -1,11 +1,12 @@
 #' @title Creation Method for the \code{"lineqBAGP"} S3 Class
 #' @description Creation method for the \code{"lineqBAGP"} S3 class.
 #' 
-#' @param x A vector or matrix with the input data. The dimensions should be indexed by columns
-#' @param y A vector with the output data
-#' @param constrType A character string corresponding to the type of the inequality constraint
-#' @param partition A list containing the partion of set \eqn{\{1, \cdots, D\}}
-#' @param m A scalar or vector corresponding to the number of knots per dimension.
+#' @param x A vector or matrix with the input data. The dimensions should be indexed by columns.
+#' @param y A vector with the output data.
+#' @param constrType A character string corresponding to the type of the inequality constraint.
+#' @param partition A list containing the partion of set \eqn{\{1, \cdots, D\}}.
+#' @param subdivision A list containing sequences of subdivision of segment $[0,1]$.
+#' @param subdivision_size A list containing the sizes of the sequences of subdivision of segment $[0,1]$.
 # #' @param subdivision A list[list[seq]] The subdivisions for each axe subdivision[[j]][[k]]
 # #' @param subdivision_taille A list[seq] subdivision_size[[j]][k] =length(subdivision[[j]][[k]])
 # #' @param dim_block :seq, the size of the blocks, dim_block[j]=length(partition[[j]])
@@ -60,7 +61,14 @@
 #' model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
 #'                 constrType = rep("monotonicity", nblocks),
 #'                 partition = list(c(1,3), 2),
-#'                 subdivision = list(list(c(0,0.5,1), c(0,0.25,0.5,0.75,0.1)), list(c(0,1)))
+#'                 subdivision = list(list(seq(0, 1, length = 3), seq(0, 1, length = 5)), 
+#'                                    list(c(0, 1))))
+#' str(model)
+#' 
+#' model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
+#'                 constrType = rep("monotonicity", nblocks),
+#'                 partition = list(c(1, 3), 2),
+#'                 subdivision_size = list(c(3, 5), 2))
 #' str(model)
 #' 
 #' @method create lineqBAGP
@@ -68,7 +76,8 @@
 
 create.lineqBAGP <- function(x, y, constrType,
                              partition = as.list(seq(ncol(x))),
-                             subdivision) {
+                             subdivision = NULL,
+                             subdivision_size = NULL) {
   # changing the data as matrices
   if (!is.matrix(x))
     x <- as.matrix(x)
@@ -79,9 +88,18 @@ create.lineqBAGP <- function(x, y, constrType,
   nblocks <- length(partition) # nb of blocks
   dim_block <- sapply(partition, function(x) length(x))
   
-  #Creation of the subdivision_size from m, type: list[seq]
-  subdivision_size <- lapply(subdivision, function(x) sapply(x,function(y) length(y)))
+  if (!is.null(subdivision)) {
+    subdivision_size <- lapply(subdivision, function(j) sapply(j, function(k) length(k)))
+  } else {
+    if (!is.null(subdivision_size)) {
+      subdivision <- lapply(subdivision_size, function(j) lapply(j, function(k) seq(0, 1, length = k)))
+    } else {
+      warning("Either 'subdivision' or 'subdivision_size' must be non null.")
+    }
+  }
   names(subdivision) <- names(subdivision_size) <- names(partition) <- paste("block", 1:nblocks, sep = "")
+  
+  #Creation of the subdivision_size from m, type: list[seq]
   
   nknots <- sum(sapply(subdivision_size, prod))
   
@@ -186,8 +204,9 @@ create.lineqBAGP <- function(x, y, constrType,
 #' # creating the model
 #' model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
 #'                 constrType = rep("monotonicity", nblocks),
-#'                 partition = list(c(1,3), 2),
-#'                 m = c(5, 3, 4))
+#'                 partition = list(c(1, 3), 2),
+#'                 subdivision_size = list(c(3, 5), 2))
+#' str(model)
 #'                 
 #' # computing some matrices used in the "lineqBAGP" model
 #' model <- augment(model)
@@ -359,7 +378,7 @@ augment.lineqBAGP <- function(x, ...) {
 #' model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
 #'                 constrType = rep("monotonicity", nblocks), 
 #'                 partition = partition,
-#'                 m = c(5, 3, 4))
+#'                 subdivision_size = list(c(3, 5), 2))
 #'
 #' # modifying the covariance parameters of each block
 #' for (k in 1:nblocks)
@@ -522,7 +541,7 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
 #' model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
 #'                 constrType = rep("monotonicity", nblocks), 
 #'                 partition = partition,
-#'                 m = c(5, 3, 4))
+#'                 subdivision_size = list(c(3, 5), 2))
 #'
 #' # modifying the covariance parameters of each block
 #' for (k in 1:nblocks)

@@ -50,8 +50,9 @@ ydesign <- targetFun(xdesign)
 # creating the model
 model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
                 constrType = rep("monotonicity", nblocks),
-                partition = list(c(1,3), 2),
-                m = c(5, 3, 4))
+                partition = list(c(1, 3), 2),
+                subdivision_size = list(c(3, 5), 2))
+str(model)
                 
 # computing some matrices used in the "lineqBAGP" model
 model <- augment(model)

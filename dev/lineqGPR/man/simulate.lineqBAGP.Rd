@@ -65,7 +65,7 @@ ytest <- targetFun(xtest, partition)
 model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
                 constrType = rep("monotonicity", nblocks), 
                 partition = partition,
-                m = c(5, 3, 4))
+                subdivision_size = list(c(3, 5), 2))
 
 # modifying the covariance parameters of each block
 for (k in 1:nblocks)
