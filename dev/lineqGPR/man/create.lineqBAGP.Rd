@@ -4,18 +4,27 @@
 \alias{create.lineqBAGP}
 \title{Creation Method for the \code{"lineqBAGP"} S3 Class}
 \usage{
-\method{create}{lineqBAGP}(x, y, constrType, partition = as.list(seq(ncol(x))), subdivision)
+\method{create}{lineqBAGP}(
+  x,
+  y,
+  constrType,
+  partition = as.list(seq(ncol(x))),
+  subdivision = NULL,
+  subdivision_size = NULL
+)
 }
 \arguments{
-\item{x}{A vector or matrix with the input data. The dimensions should be indexed by columns}
+\item{x}{A vector or matrix with the input data. The dimensions should be indexed by columns.}
 
-\item{y}{A vector with the output data}
+\item{y}{A vector with the output data.}
 
-\item{constrType}{A character string corresponding to the type of the inequality constraint}
+\item{constrType}{A character string corresponding to the type of the inequality constraint.}
 
-\item{partition}{A list containing the partion of set \eqn{\{1, \cdots, D\}}}
+\item{partition}{A list containing the partion of set \eqn{\{1, \cdots, D\}}.}
 
-\item{m}{A scalar or vector corresponding to the number of knots per dimension.}
+\item{subdivision}{A list containing sequences of subdivision of segment $[0,1]$.}
+
+\item{subdivision_size}{A list containing the sizes of the sequences of subdivision of segment $[0,1]$.}
 }
 \value{
 A list with the following elements.
@@ -52,7 +61,14 @@ ydesign <- targetFun(xdesign)
 model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
                 constrType = rep("monotonicity", nblocks),
                 partition = list(c(1,3), 2),
-                subdivision = list(list(c(0,0.5,1), c(0,0.25,0.5,0.75,0.1)), list(c(0,1)))
+                subdivision = list(list(seq(0, 1, length = 3), seq(0, 1, length = 5)), 
+                                   list(c(0, 1))))
+str(model)
+
+model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
+                constrType = rep("monotonicity", nblocks),
+                partition = list(c(1, 3), 2),
+                subdivision_size = list(c(3, 5), 2))
 str(model)
 
 }
