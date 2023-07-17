@@ -705,7 +705,7 @@ square_norm_int <- function(model1,model2){
   criteria <- block_to_matrix(block_compute(block_compute(block_compute(
     eta,"transpose"),"prod", Gram_block),"prod",eta),"sum")
   products <- as.matrix(unlist(block_compute(block_compute(eta,"transpose"),"prod",E_block)))
-  return(criteria + sum(products%x%products) - sum(sapply(products, function(x) x^2)))
-          #/(model2$nknots-model1$nknots) )
+  return((criteria + sum(products%x%products) - sum(sapply(products, function(x) x^2)))
+          /(model2$nknots-model1$nknots))
 }
 
