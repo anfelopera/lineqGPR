@@ -60,7 +60,7 @@
 #' model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
 #'                 constrType = rep("monotonicity", nblocks),
 #'                 partition = list(c(1,3), 2),
-#'                 m = c(5, 3, 4))
+#'                 subdivision = list(list(c(0,0.5,1), c(0,0.25,0.5,0.75,0.1)), list(c(0,1)))
 #' str(model)
 #' 
 #' @method create lineqBAGP
@@ -68,7 +68,7 @@
 
 create.lineqBAGP <- function(x, y, constrType,
                              partition = as.list(seq(ncol(x))),
-                             m = NULL) {
+                             subdivision) {
   # changing the data as matrices
   if (!is.matrix(x))
     x <- as.matrix(x)
@@ -79,33 +79,30 @@ create.lineqBAGP <- function(x, y, constrType,
   nblocks <- length(partition) # nb of blocks
   dim_block <- sapply(partition, function(x) length(x))
   
-  #Creation of the subdivisions from m, type: list[seq]
-  subdivision_size <- subdivision <- vector("list", nblocks)
-  names(subdivision) <- names(subdivision) <- names(partition) <- paste("block", 1:nblocks, sep = "")
+  #Creation of the subdivision_size from m, type: list[seq]
+  subdivision_size <- lapply(subdivision, function(x) sapply(x,function(y) length(y)))
+  names(subdivision) <- names(subdivision_size) <- names(partition) <- paste("block", 1:nblocks, sep = "")
+  
+  nknots <- sum(sapply(subdivision_size, prod))
   
   for (j in 1:nblocks) {
-    subdivision_size[[j]] <- sapply(1:dim_block[j],function(k)  m[partition[[j]][k]])
-    subdivision[[j]] <- lapply(1:dim_block[j],function(k) matrix(seq(0, 1, by = 1/(m[partition[[j]][k]]-1)), ncol = 1))
-   
     names(partition[[j]]) <- names(subdivision[[j]]) <-
       names(subdivision_size[[j]]) <- paste("var", partition[[j]], sep = "")
-    
   }
-    
+  
   # creating some lists for the model
   
   localParam <- list(subdivision = subdivision, subdivision_size = subdivision_size,
                      sampler = "ExpT", nblocks = nblocks, partition = partition, dim_block = dim_block, 
                      samplingParams = c(thinning = 1, burn.in = 1, scale = 0.1))
   
-  ##Constraints 
-  
+  ##  to be adapted to deal with componentwise constraints per blocks 
   constrFlags <- rep(1, nblocks) # to be checked later 
+  # constrFlags <- lapply(subdivision_size, function(sub_temp) rep(1, length(sub_temp)))
   
   kernParam <- list()
   kernParam$type <- "matern52" # to consider different kernels per blocks
-  kernParam$par <- vector("list", nblocks)
-  constrParam <- vector("list", nblocks)
+  kernParam$par <- constrParam <- vector("list", nblocks)
   names(constrParam) <- paste("block", 1:nblocks, sep = "")
   for (j in 1:nblocks) { # to be checked later! We will focus on the monotonicity constraint
     kernParam$par[[j]] <- c(sigma2 = 1^2, theta = rep(0.1, dim_block[j]))
@@ -133,8 +130,8 @@ create.lineqBAGP <- function(x, y, constrType,
   constrIdx <- which(constrFlags == 1) # to be checked !!
   # creating the full list for the model
   model <- list(x = x, y = y, constrType = constrType,  subdivision = subdivision,
-                d = d,  nugget = 1e-6, 
-                constrIdx = constrIdx, constrParam = constrParam,
+                partition = partition, d = d,  nugget = 1e-6, nblock = nblocks,
+                constrIdx = constrIdx, constrParam = constrParam, nknots = nknots,
                 varnoise = 0.05*sd(y)^2,  localParam = localParam, kernParam = kernParam)
   return(model)
 }
@@ -151,7 +148,8 @@ create.lineqBAGP <- function(x, y, constrType,
 #' The basis functions are indexed by rows}
 #' \item{kernel$Param}{an object indicating for each variable the associated kernel} #will evolve
 #' \item{Gamma.var}{a list of list of matrix where Gamma.var[[j]][[k]][i] is 
-#' the covariance matrix of the 1D GP with kernel kernel$Param[[j]][[k]] for the points \eqn{x^{(1)}_{\sigma(i)},..., x^{n}_{\sigma(i)}}}.
+#' the covariance matrix of the 1D GP with kernel kernel$Param[[j]][[k]] for the points 
+#' \eqn{x^{(1)}_{\sigma(i)},..., x^{n}_{\sigma(i)}}}.
 #' \item{(Lambda,lb,ub)}{the linear system of inequalities.}
 #' \item{...}{further parameters passed to or from other methods.}
 #'
@@ -212,10 +210,10 @@ augment.lineqBAGP <- function(x, ...) {
   x <- model$x
   nblocks <- model$localParam$nblocks
   dim_block <- model$localParam$dim_block
-  partition <- model$localParam$partition
+  partition <- model$partition
   subdivision <- model$subdivision
   subdivision_size <- model$localParam$subdivision_size
-  nknots <- model$localParam$nknots <- sum(sapply(subdivision_size, prod))
+  nknots <- model$localParam$nknots <- model$nknots 
   
   # Beginning of the construction of the two matrices Gamma and Phi which will 
   # help us to express the law of the Gaussian vector from the conditional law.
@@ -244,11 +242,11 @@ augment.lineqBAGP <- function(x, ...) {
     } else {
       bounds <- model$constrParam[[j]]$bounds
       
-      
+      # The constraints are imposed over all the variables in a block
       lsys <- lineqGPSys(subdivision_size[[j]], model$constrType[[j]], bounds[1], bounds[2],
-                         constrIdx = model$constrIdx, lineqSysType = "oneside")
+                         constrIdx = 1:length(subdivision_size[[j]]), lineqSysType = "oneside")
       lsys2 <- lineqGPSys(subdivision_size[[j]], model$constrType[[j]], bounds[1], bounds[2],
-                          constrIdx = model$constrIdx, rmInf = FALSE)
+                          constrIdx = 1:length(subdivision_size[[j]]), rmInf = FALSE)
       
       model$constrParam[[j]]$Lambda <- lsys2$A
       model$constrParam[[j]]$lb <- lsys2$l
@@ -450,8 +448,8 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   
   # pred$Sigma <- chol2inv(chol(invSigma))
 
-  pred$xi.mode <- solve.QP(invSigma, t(pred$xi.mean) %*% invSigma,
-                           t(model$lineqSys$M), model$lineqSys$g)$solution
+  pred$xi.mode <- as.matrix(solve.QP(invSigma, t(pred$xi.mean) %*% invSigma,
+                           t(model$lineqSys$M), model$lineqSys$g)$solution)
   
   
   pred$y.mean <- pred$Phi.test%*%pred$xi.mean

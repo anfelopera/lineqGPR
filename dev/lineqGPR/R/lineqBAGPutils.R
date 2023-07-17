@@ -1,13 +1,10 @@
 # Useful functions for \code{"lineqBAGP"} Models.
+# If there an issure remove .Rproj.user
 
 #' @title Block operation wrapper function
 #' @description The additivity gives us block matrices, hence we can accelerate
 #' the computations this is the role of algorithm in this section to facilitate
 #' the manipulation of matrices of the type \code{list["vector"]} 
-#' \eqn{\{1, \cdots, D \}} induces a natural bijection from
-#' \eqn{\{ (j,k), j \in \{1, \cdots, J \}, k \in \{1,\cdots, \mathcal{J}_b\} \} }
-#' into \eqn{\{1, \cdots, D\}} there is an straight one, \code{partition[[j]][[k]]}
-#' gives the element \eqn{i} and ...  
 #' 
 #' @param A A list containing matrices.
 #' @param type A string describing the type of operation to be applied for all the blocks.
@@ -18,6 +15,7 @@
 #' 
 #' @importFrom Matrix bdiag
 #' @export
+
 block_to_matrix <- function(A, type = c("bdiag", "cbind", "rbind", "sum")) {
   type <- match.arg(type)
   if (type == "sum") {
@@ -29,13 +27,55 @@ block_to_matrix <- function(A, type = c("bdiag", "cbind", "rbind", "sum")) {
   }
 }
 
-# #' We can extract evaluation of our GP with a product of matrices $\Phi and \xi$, however, how to 
+#' @title Block operation wrapper function
+#' @description The additivity gives us block matrices, hence we can accelerate
+#' the computations this is the role of algorithm in this section to facilitate
+#' the manipulation of matrices of the type \code{list["vector"]} 
+#' 
+#' @param M a matrix
+#' @param subdivision a subdivision of [0,1]
+#' @param type is a string defining how we want to cut the blocks
+#' 
+#' @return A matrix per block, meaning a list of matrices
+#'
+#' @author M. Deronzier and A. F. Lopez-Lopera
+#' 
+#' @importFrom Matrix bdiag
+#' @export
+
+matrix_to_block <- function(M, subdivision, type = c("bdiag", "cbind", "rbind")) {
+  J <- length(subdivision)
+  block_size <- c(0, sapply(lapply(subdivision, function(x) sapply(x,function(y) length(y))),
+                       function(x) prod(x)))
+  block_M <- vector("list", length(subdivision))
+  if (type=="diag"){
+    for (j in 1:J){
+      n1 <- sum(block_size[1:j])+1
+      n2 <- n1+ block_size[j+1]-1
+      block_M[[j]] <- M[n1:n2,n1:n2]
+    }
+  } else if (type=="cbind"){
+    for (j in 1:J){
+      n1 <- sum(block_size[1:j])+1
+      n2 <- n1+ block_size[j+1]-1
+      block_M[[j]] <- as.matrix(matrix(M[,n1:n2], ncol=1))
+    }
+  } else if (type=="rbind"){
+    for (j in 1:J){
+      n1 <- sum(block_size[1:j])+1
+      n2 <- n1+ block_size[j+1]-1
+      block_M[[j]] <- as.matrix(M[n1:n2,])
+    }
+  }
+  return(block_M)
+}
+# #' We can extract evaluation of our GP with a product of matrices Phi and xi, however, how to 
 # #' arrange our function the tensorisation will give us a natural way to arrange things
 # 
-# #' This function gives the matrice $\Phi$ as a list of matrices per blocks 
+# #' This function gives the matrice Phi as a list of matrices per blocks 
 # 
-# #' Take the vector subdivision and $x$ and get out the object 
-# #' $(phi_{{j,k}})(x_{j})_{j,k in}$
+# #' Take the vector subdivision and x and get out the object 
+# #' (phi_{{j,k}})(x_{j})_{j,k in}
 # #' @return Phi_per_var: such that Phi_per_var[[j]][[k]][i] give a seq
 # #' of the hat function $\phi_{j,k,i}(X_i)$ where $(X_i)=(x^{(1)}_i,\cdots x^{(n)_i})$ and 
 # #' \phi_{j,k,i} is the hat function given by the subdivision[[j]][[k]]  
@@ -80,11 +120,11 @@ Phi_per_var <- function(subdivision, partition, x){
 #' 
 #' @export
 Phi_var_to_tensor <- function(Phi.perVar){
-  # This function take the phi per variables and get back the family $\phi_{\el_j}(x_{j})$
+  
   nblocks <- length(Phi.perVar)
   dim_block <- sapply(Phi.perVar, function(x) length(x))
   
-  Phi.perBlock <- list("vector", nblocks)
+  Phi.perBlock <- vector("list", nblocks)
   nbdesign <- nrow(Phi.perVar[[1]][[1]])
   for(j in 1:nblocks){
     Phi.perBlock[[j]] <- matrix(0, nrow = nbdesign, prod(sapply(Phi.perVar[[j]], ncol)))
@@ -193,7 +233,7 @@ Gamma_var <- function(subdivision, par, type) {
 Gamma_var_to_tensor <- function(Gamma.perVar) {#, dim_block, J){
   nblocks <- length(Gamma.perVar)
   dim_block <- sapply(Gamma.perVar, function(x) length(x))
-  Gamma.perBlock <- list("vector", nblocks)
+  Gamma.perBlock <- vector("list", nblocks)
   names(Gamma.perBlock) <- paste("block", 1:nblocks, sep = "")
   for(j in 1:nblocks) {
     params <- attr(Gamma.perVar[[j]], "par")
@@ -222,12 +262,6 @@ Gamma_var_to_tensor <- function(Gamma.perVar) {#, dim_block, J){
     attr(Gamma.perBlock[[j]], "derivative") <- NULL
     attr(Gamma.perBlock[[j]], "par") <- params
   }
-    
-    
-  
-  
-  
-  
   return(Gamma.perBlock)
 }
 
@@ -274,8 +308,6 @@ block_compute <- function(A,
   )
 }
 
-#### backup of unused fonctions ####
-
 #' @title Bijection operator
 #' @description A wrapper function used in \code{"lineqBAGP"} models to obtain the indices
 #' of the corresponding block and the local input variable of a global variable. 
@@ -290,13 +322,13 @@ block_compute <- function(A,
 #' 
 #' @return a sequence containing the indices of the block and the input variable. 
 #'
-#' @author M. Deronzier
+#' @author M. Deronzier and A. F. Lopez-Lopera
 #'
-# #' @examples
-# #' partition <- list(c(1,3), c(2,4,5))
-# #' bijection(partition, 3)
-#' 
-# #' @export
+#'@examples
+#' partition <- list(c(1,3), c(2,4,5))
+#' bijection(partition, 3)
+#' @export 
+
 bijection <- function(partition, i){
   for (j in 1:length(partition)){
     if (i %in% partition[[j]]) 
@@ -314,7 +346,7 @@ bijection <- function(partition, i){
 #'
 #' @author M. Deronzier and A. F. Lopez-Lopera
 #' 
-# #' @export
+#' @export
 block_scalar <- function(A, B){
   scalar <- eval(parse(text = paste("cbind(",
                                     paste("A[[1]]%*%B[[", 1:length(B), "]]",
@@ -374,3 +406,306 @@ inv_lemma <- function(U, V, W, invZ){
 #          chol2inv(chol(block_to_matrix(block_compute(t_inv_ZV, "prod", U)), "sum"))%*%
 #          block_to_matrix(t_inv_ZV, "rbind"))
 # }
+
+
+#' @title Algorithm that check if you can make a changment basis.
+#' @description This algorithm check if we are in the hypotheses of the proposition
+#' to make a changment basis. 
+#' 
+#' @param partition1,partition2 two partitions  
+#' @param subdivision1,subdivision2 two subdivisions adapted to the partitions we need 
+#' 
+#' @return boolean indicating if we can make a changment basis
+#'
+#' @author M. Deronzier and A. F. Lopez-Lopera
+#' 
+#' @export
+
+condition_changment_basis <- function(partition1,partition2,subdivision1,subdivision2){
+  set1 <- eval(parse(text = paste("sort(c(",
+                                   paste("c(partition1[[", 1:length(partition1), "]])",
+                                         sep = "", collapse = ","),
+                                   "))", sep = "")))
+  set2 <- eval(parse(text = paste("sort(c(",
+                                  paste("c(partition1[[", 1:length(partition1), "]])",
+                                        sep = "", collapse = ","),
+                                  "))", sep = "")))
+  if(isFALSE(setequal(set1, intersect(set1,set2)))){
+    return(FALSE)
+  }else{
+    for (i in set1){
+      bij1 <- bijection(partition1,i)
+      bij2 <- bijection(partition2,i)
+      if(isFALSE(setequal(subdivision1[[bij1[1]]][[bij1[2]]], 
+                          intersect(subdivision1[[bij1[1]]][[bij1[2]]],
+                          subdivision2[[bij2[1]]][[bij2[2]]])))){
+        return(FALSE)
+      }
+    }
+  }
+  return(TRUE)
+}
+
+#' @title Creation of changing basis matrices in case 1 of the article
+#' @description This algorithm make the changement basis corresponding of the case 1
+#' of the article.
+#' 
+#' @param partition1,partition2 two partitions  
+#' @param subdivision1,subdivision2 two subdivisions adapted to the partitions we need 
+#' 
+#' @return Boolean indicating if we can make a changment basis
+#'
+#' @author M. Deronzier and A. F. Lopez-Lopera
+#' 
+#' @export
+
+changment_basis_knots <- function(subdivision1,subdivision2){
+  n <- length(subdivision1)
+  submatrix <- vector("list", length(subdivision2))
+  for (j in 1:length(subdivision1)){
+    submatrix[[j]] <- basisCompute.lineqGP(subdivision2[[j]], subdivision1[[j]])
+  } 
+  return(eval(parse(text = paste("submatrix[[", 1:n,"]]", sep = "", collapse = "%x%"))))
+}
+
+
+#' @title Creation of changing basis matrices in case 2 of the article
+#' @description This algorithm make the changment basis corresponding to the case 2
+#' of the article.
+#' 
+#' @param partition1,partition2 two partitions  
+#' @param subdivision1,subdivision2 two subdivisions adapted to the partitions we need 
+#' 
+#' @return Boolean indicating if we can make a changment basis
+#'
+#' @author M. Deronzier and A. F. Lopez-Lopera
+#' 
+#' @export
+
+changment_basis_inclusion <- function(partition1, partition2, subdivision2){
+  n1 <- length(partition1)
+  n2 <- length(partition2)
+  submatrix <- vector("list", n1)
+  for(i in 1:n2){
+    if (inclusion(partition2[i],partition1)){
+      submatrix[[i]] <- diag(length(subdivision2[[i]]))
+    } else {
+      submatrix[[i]] <- rep(1,length(subdivision2[[i]]))
+    }
+  }
+  return(eval(parse(text = 
+                      paste("submatrix[[", 1:n2,"]]", collapse = "%x%", sep = "")
+  )))
+}
+
+#' @title Indicate if set1 is in set2
+#' @description Give a boolean saying if set1 is in set2
+#' 
+#' @param set1,set2 two vectors representing sets  
+#' 
+#' @return TRUE if set1 is included in set2  FALSE otherwise
+#'
+#' @author M. Deronzier and A. F. Lopez-Lopera
+#' 
+#' @export
+
+inclusion <- function(set1,set2){
+  return (setequal(set1,intersect(set1,set2)))
+}
+
+
+#' @title Creation of changing basis matrices in the general case
+#' @description The algorithm explained in the proof of the article.
+#' 
+#' @param partition1,   partition2 two partitions  
+#' @param subdivision1,subdivision2 two subdivisions adapted to the partitions we need 
+#' 
+#' @return P a changment basis matrix from the basis generated by (partition1, subdivision1) to 
+#' the basis generated by (partition2, subdivision2)
+#'
+#' @author M. Deronzier and A. F. Lopez-Lopera
+#' 
+#' @export
+
+changement_basis_matrix <- function(partition1,partition2,subdivision1,subdivision2){
+  if (isFALSE(condition_changment_basis(partition1,partition2,subdivision1,subdivision2))){
+    stop("Changement base can't be computed")
+  }
+  
+  # For each block in partition1, the block in which it is included in partition2
+  container <- sapply(partition1, function(X) which(sapply(partition2, function(x) inclusion(X, x))==TRUE))
+  # Useful variables
+  
+  n1 <- length(partition1)
+  n2 <- length(partition2)
+  
+  subdivision_size1 <- lapply(subdivision1, function(x) sapply(x,function(y) length(y)))
+  subdivision_size2 <- lapply(subdivision2, function(x) sapply(x,function(y) length(y)))
+  block_size1 <- sapply(subdivision_size1, function(x) prod(x))
+  block_size2 <- sapply(subdivision_size2, function(x) prod(x))
+  
+  # The first modification we'll do corresponding to case 1
+  P1_block <- vector("list", n1)
+  new_subdivision <- vector("list",n1)
+  for (j in 1:n1){
+    new_subdivision[[j]] <- lapply(partition1[[j]], function(x) 
+      subdivision2[[container[j]]][[which(x==partition2[[container[j]]])]])
+    P1_block[[j]] <- changment_basis_knots(subdivision1[[j]],new_subdivision[[j]])
+  }
+  P2_block <- vector("list", n1)
+  for (j in 1:n1){
+    P2_block[[j]] <- changment_basis_inclusion(partition1[[j]], partition2[[container[[j]]]],
+                                                subdivision2[[container[[j]]]])
+  }
+  P_block <- lapply(1:n1, function(x) P2_block[[x]]%*%P1_block[[x]])
+  
+  if(n2==1){
+    return(block_to_matrix(P_block, "cbind"))
+  }
+  #### Algorithm to agglomerate blocks 
+  P <- vector("list", n1)
+  for(j in 1:n1){
+    if(container[j]==1){
+      P[[j]] <- rbind(P_block[[j]], matrix(0, ncol= block_size1[j], nrow=(sum(block_size2[2:n2]))))
+    } else if (container[j]==n2){
+      P[[j]] <- rbind(matrix(0, ncol=block_size1[j], nrow=(sum(block_size2[1:(n2-1)]))), P_block[[j]])
+    } else {
+      P[[j]] <- rbind(matrix(0, ncol=block_size1[j], nrow=(sum(block_size2[1:(container[j]-1)]))), P_block[[j]],
+                      matrix(0, ncol=block_size1[j], nrow=(sum(block_size2[(container[j]+1):n2]))))
+    }
+  }
+  return(block_to_matrix(P,"cbind"))
+}
+
+############################## Function to calculate the square norm criteria ##########################################
+
+#' @title integral in the 1 dimension case
+#' @description gives the value of integral of  the hat basis functions constructed 
+#' from a 1 dimensional subdivision.
+#'
+#' @param subdivision of type sequence, representing a subdivision of [0,1]  
+#' 
+#' @return the integral fo each hat function described by the subdivision
+#'
+#' @author M. Deronzier and A. F. Lopez-Lopera
+#' 
+#' @export
+
+seq_int <- function(subdivision){
+  J <- length(subdivision)
+  subdivision1 <- c(0, subdivision, 1)
+  1/2*sapply(2:(J+1), function(i) subdivision1[i+1]-subdivision1[i-1])
+}
+
+
+#' @title integral in the general case
+#' @description Give the vector E defined in the article.
+#'
+#' @param subdivision of type list(list(sequence)) the subdivisions of [0,1] 
+#' 
+#' @return the integral fo each hat function described by the subdivision
+#'
+#' @author M. Deronzier and A. F. Lopez-Lopera
+#' 
+#' @export
+
+Mat_E <- function(subdivision, J = length(subdivision)){
+  E <- vector("list", J)
+  for (j in 1:J){
+    E[[j]] <- eval(parse(text = 
+              paste("seq_int(subdivision[[",j,"]][[", 1:length(subdivision[[j]]),"]])", collapse = "%x%", sep = "")
+    ))
+  }
+  return(E)
+}
+
+
+#' @title Gram matrix for the 1 dimensional basis functions (\code{"lineqBAGP"})
+#' @description Compute the Gram matrix of the basis functions for \code{"lineqBAGP"} models
+#' 
+#' @param subdivision a subdivision of [0,1]
+#' @param n the size of the subdivision
+#' 
+#' @return Gram matrix of the basis functions
+#'
+#' @author M. Deronzier and A. F. Lopez-Lopera
+#'
+#' @references F. Bachoc, A. F. Lopez-Lopera, and O. Roustant (2020),
+#' "Sequential construction and dimension reduction of Gaussian processes under inequality constraints".
+#' \emph{ArXiv e-prints}
+#' <arXiv:2009.04188>
+#'
+#' @export
+
+sub_Gram <- function(subdivision,n=length(subdivision)){
+  n<-length(subdivision)
+  sub <- c(0,subdivision,1)
+  dsub <- diff(sub)
+  mat <- diag(1/3*(dsub[1:n]+dsub[2:(n+1)]))
+  for (i in 1:(n-1)){
+    mat[i,i+1]<-mat[i+1,i]<-(1/6)*dsub[i+1]
+  }
+  return(mat)
+}
+
+#' @title Gram matrix for the 1 dimensional basis functions (\code{"lineqBAGP"})
+#' @description Compute the Gram matrix of the basis functions for \code{"lineqBAGP"} models
+#' 
+#' @param subdivision the multiples subdivisions on the variable
+#' @param J number of blocks
+#' @return Gram matrix of the basis functions
+#'
+#' @author M. Deronzier and A. F. Lopez-Lopera
+#'
+#' @references F. Bachoc, A. F. Lopez-Lopera, and O. Roustant (2020),
+#' "Sequential construction and dimension reduction of Gaussian processes under inequality constraints".
+#' \emph{ArXiv e-prints}
+#' <arXiv:2009.04188>
+#'
+#' @export
+
+Gram <- function(subdivision, J =length(subdivision)){
+  gram <- vector("list", J)
+  for(j in 1:J){
+    gram[[j]] <- eval(parse(text = 
+                              paste("sub_Gram(subdivision[[",j,"]][[",
+                                    1:length(subdivision[[j]]),"]])",
+                                    collapse = "%x%", sep = "")
+    ))
+  }  
+  return(gram)
+}
+
+
+#' @title Gram matrix of the basis functions (\code{"lineqBAGP"})
+#' @description Compute the Gram matrix of the basis functions for \code{"lineqBAGP"} models
+#' 
+#' @param subdivision a sequence corresponding to the values of the knots
+#' 
+#' @return Gram matrix of the basis functions
+#'
+#' @author M. Deronzier and A. F. Lopez-Lopera
+#'
+#' @references F. Bachoc, A. F. Lopez-Lopera, and O. Roustant (2020),
+#' "Sequential construction and dimension reduction of Gaussian processes under inequality constraints".
+#' \emph{ArXiv e-prints}
+#' <arXiv:2009.04188>
+#'
+#' @export
+
+square_norm_int <- function(model1,model2){
+  Gram_block <- Gram(model2$subdivision)
+  E_block <- Mat_E(model2$subdivision)
+  mat <-changement_basis_matrix(model1$partition, model2$partition, model1$subdivision, model2$subdivision)
+  Xi <- matrix_to_block((changement_basis_matrix(model1$partition, model2$partition,
+                        model1$subdivision, model2$subdivision)%*%predict(model1,0)$xi.mod),
+                        model2$subdivision, type="rbind")
+  new.Xi <- matrix_to_block(predict(model2,0)$xi.mod, model2$subdivision, type = "rbind")
+  eta <- block_compute(Xi,"sum", new.Xi,1,-1)
+  criteria <- block_to_matrix(block_compute(block_compute(block_compute(
+    eta,"transpose"),"prod", Gram_block),"prod",eta),"sum")
+  products <- as.matrix(unlist(block_compute(block_compute(eta,"transpose"),"prod",E_block)))
+  return(criteria + sum(products%x%products) - sum(sapply(products, function(x) x^2)))
+          #/(model2$nknots-model1$nknots) )
+}
+

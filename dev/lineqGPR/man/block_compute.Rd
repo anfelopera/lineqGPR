@@ -6,7 +6,8 @@
 \usage{
 block_compute(
   A,
-  operation = c("sum", "prod", "transpose", "chol", "inv", "chol2inv", "scalarMatMul"),
+  operation = c("sum", "prod", "transpose", "chol", "inv", "chol2inv", "scalarMatMul",
+    "det"),
   B = NULL,
   alpha = 1,
   beta = 1
