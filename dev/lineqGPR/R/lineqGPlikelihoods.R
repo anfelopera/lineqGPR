@@ -51,14 +51,21 @@ lineqGPOptim <- function(model,
                          bounds.varnoise = c(0, Inf),
                          add.constr = FALSE,
                          additive = FALSE,
+                         block = FALSE,
                          mcmc.opts = list(probe = "Genz", nb.mcmc = 1e3),
                          max.trials = 10, ...) {
   if (additive) {
-    xmodel <- unlist(purrr::map(model$kernParam, "par"))
-    if (length(x0) != length(xmodel)) {
+    if (!block) {
+      xmodel <- unlist(purrr::map(model$kernParam, "par"))
+      if (length(x0) != length(xmodel)) {
+        x0 <- xmodel
+        lb <- c(lb[1], rep(lb[2], length(x0)-1))
+        ub <- c(ub[1], rep(ub[2], length(x0)-1))
+        opts$parfixed <-  rep(FALSE, length(x0))
+      }
+    } else {
+      xmodel <- unlist(model$kernParam$par)
       x0 <- xmodel
-      lb <- rep(0.01, length(x0))
-      ub <- rep(Inf, length(x0))
       opts$parfixed <-  rep(FALSE, length(x0))
     }
   }
@@ -86,8 +93,14 @@ lineqGPOptim <- function(model,
   
   # changing the functions according to fn
   if (eval_f == "logLik") {
-    if (additive) 
-      eval_f = paste(eval_f, "Additive", sep = "")
+    if (additive) {
+      if (block) {
+        eval_f = paste(eval_f, "BlockAdditive", sep = "")
+      } else {
+        eval_f = paste(eval_f, "Additive", sep = "")
+      }
+    }
+    
     fn <- paste(eval_f, "Fun", sep = "")
     gr <- paste(eval_f, "Grad", sep = "")
     if (add.constr) {
@@ -95,7 +108,7 @@ lineqGPOptim <- function(model,
       gr <- paste("constr", gr, sep = "")
     }
   }   # CV methods will be implemented in future versions
-
+  
   if (estim.varnoise) {
     if (!("varnoise" %in% names(model)))
       model$varnoise <- 0
@@ -106,16 +119,18 @@ lineqGPOptim <- function(model,
   # seed <- 5e1^sum(x0) # to try with different and fixed initial parameters
   trial <- 1
   while(trial <= max.trials) {
-    optim <- try(nloptr(x0 = x0,
-                        eval_f = get(fn),
-                        eval_grad_f = get(gr),
-                        lb = lb,
-                        ub = ub,
-                        opts = opts,
-                        model = model,
-                        mcmc.opts = mcmc.opts,
-                        parfixed = opts$parfixed,
-                        estim.varnoise = estim.varnoise, ...))
+    optim <- #try(
+      nloptr(x0 = x0,
+             eval_f = get(fn),
+             eval_grad_f = get(gr),
+             lb = lb,
+             ub = ub,
+             opts = opts,
+             model = model,
+             mcmc.opts = mcmc.opts,
+             parfixed = opts$parfixed,
+             estim.varnoise = estim.varnoise, ...)
+    #   )
     if (class(optim) == "try-error") {
       set.seed(seed)
       x0Rand <- runif(length(x0), lb, ub)
@@ -136,8 +151,18 @@ lineqGPOptim <- function(model,
       optim$solution <- optim$solution[-length(optim$solution)]
     }
     if (additive) {
-      for (k in 1:model$d)
-        model$kernParam[[k]]$par <- optim$solution[(k-1)*length(model$kernParam[[k]]$par) + 1:2]
+      if (!block) {
+        for (k in 1:model$d)
+          model$kernParam[[k]]$par <- optim$solution[(k-1)*length(model$kernParam[[k]]$par) + 1:2]
+      } else {
+        # creating a list following the partition's structure
+        parIdxInit <- 1
+        for (j in 1:model$localParam$nblocks) {
+          parIdxEnd <- sum(model$localParam$dim_block[1:j])+j
+          model$kernParam$par[[j]] <-  optim$solution[parIdxInit:parIdxEnd]
+          parIdxInit <- parIdxEnd + 1
+        }
+      }
     } else {
       model$kernParam$par <- optim$solution
     }
@@ -172,15 +197,15 @@ logLikFun <- function(par = model$kernParam$par, model,
                       parfixed = NULL, mcmc.opts = NULL,
                       estim.varnoise = FALSE) {
   switch (class(model),
-    lineqGP = {
-      m <- model$localParam$m
-      u <- vector("list", model$d) # list with d sets of knots
-      for (j in 1:model$d)
-        u[[j]] <- matrix(seq(0, 1, by = 1/(m[j]-1)))
-    }, lineqMaxModGP = {
-      u <- model$localParam$u
-      m <- c(unlist(model$localParam$m))
-    } 
+          lineqGP = {
+            m <- model$localParam$m
+            u <- vector("list", model$d) # list with d sets of knots
+            for (j in 1:model$d)
+              u[[j]] <- matrix(seq(0, 1, by = 1/(m[j]-1)))
+          }, lineqMaxModGP = {
+            u <- model$localParam$u
+            m <- c(unlist(model$localParam$m))
+          } 
   )
   
   if (estim.varnoise) {
@@ -189,7 +214,7 @@ logLikFun <- function(par = model$kernParam$par, model,
   } else {
     varnoise <- model$varnoise
   }
-
+  
   AllGammas <- vector("list", model$d) # list with the d covariance matrices
   if (length(par) == 2 && length(unique(m)) == 1) {
     if (is.list(u)) {
@@ -218,7 +243,7 @@ logLikFun <- function(par = model$kernParam$par, model,
   }
   expr <- paste("AllGammas[[", seq(model$d), "]]", collapse = " %x% ")
   Gamma <- eval(parse(text = expr))
-
+  
   Phi <- model$Phi
   Kyy <- Phi %*% Gamma %*% t(Phi)
   # if (estim.varnoise)
@@ -265,7 +290,7 @@ logLikGrad <- function(par = model$kernParam$par, model,
             m <- c(unlist(model$localParam$m))
           } 
   )
-
+  
   if (estim.varnoise) {
     varnoise <- par[length(par)]
     par <- par[-length(par)]
@@ -298,18 +323,18 @@ logLikGrad <- function(par = model$kernParam$par, model,
   }
   expr <- paste("AllGammas[[", seq(model$d), "]]", collapse = " %x% ")
   Gamma <- eval(parse(text = expr))
-
+  
   Phi <- model$Phi
   Kyy <- Phi %*% Gamma %*% t(Phi)
   if (estim.varnoise)
     Kyy <- Kyy + varnoise*diag(nrow(Kyy))
   cholKyy <- chol(Kyy + model$kernParam$nugget*diag(nrow(Kyy)))
   invKyy <- chol2inv(cholKyy)
-
+  
   gradf <- rep(0, length(par))
   idx_iter <- seq(length(par))
   idx_iter <- idx_iter[parfixed == FALSE]
-
+  
   expr <- matrix(paste("AllGammas[[", seq(model$d),"]]", sep = ""),
                  model$d, model$d, byrow = TRUE)
   diag(expr) <- paste("attr(AllGammas[[", seq(model$d),
@@ -390,12 +415,12 @@ constrlogLikFun <- function(par = model$kernParam$par, model, parfixed = NULL,
   # u <- matrix(seq(0, 1, by = 1/(model$localParam$m-1)), ncol = 1) # discretization vector
   # Gamma <- kernCompute(u, u, model$kernParam$type, par = par)
   # if (model$d == 2)
-    # Gamma <- kronecker(Gamma, Gamma)
+  # Gamma <- kronecker(Gamma, Gamma)
   m <- model$localParam$m
   u <- vector("list", model$d) # list with d sets of knots
   for (j in 1:model$d)
     u[[j]] <- matrix(seq(0, 1, by = 1/(m[j]-1)))
-
+  
   if (estim.varnoise) {
     varnoise <- par[length(par)]
     par <- par[-length(par)]
@@ -426,7 +451,7 @@ constrlogLikFun <- function(par = model$kernParam$par, model, parfixed = NULL,
   Gamma <- eval(parse(text = expr))
   Phi <- model$Phi
   GammaPhit <- Gamma %*% t(Phi)
-
+  
   # computing the negative of the unconstrained log-likelihood
   Kyy <- Phi %*% GammaPhit
   if (estim.varnoise)
@@ -436,7 +461,7 @@ constrlogLikFun <- function(par = model$kernParam$par, model, parfixed = NULL,
   logDetKyy <- 2*sum(diag(log(cholKyy)))
   invKyy <- chol2inv(cholKyy)
   f <- 0.5*(logDetKyy + nrow(Kyy)*log(2*pi) + t(model$y)%*%invKyy%*%model$y)
-
+  
   # computing the other terms of the constrained log-likelihood
   GammaPhitInvKyy <- GammaPhit %*% invKyy
   mu <- GammaPhitInvKyy %*% model$y
@@ -448,7 +473,7 @@ constrlogLikFun <- function(par = model$kernParam$par, model, parfixed = NULL,
   Gamma.eta <- model$Lambda %*% Gamma %*% t(model$Lambda)
   if (min(eigen(Gamma.eta, symmetric = TRUE)$values) <= 0) # numerical stability
     Gamma.eta <- Gamma.eta + 1e-5*diag(nrow(Gamma.eta))
-
+  
   set.seed(7)
   switch(mcmc.opts$probe,
          Genz = {
@@ -458,7 +483,7 @@ constrlogLikFun <- function(par = model$kernParam$par, model, parfixed = NULL,
                                   rep(0, nrow(Gamma.eta)), sigma = Gamma.eta)[[1]])
          }, ExpT = {
            f <- f - log(TruncatedNormal::mvNcdf(model$lb-mu.eta, model$ub-mu.eta,
-                               Sigma.eta, mcmc.opts$nb.mcmc)$prob) +
+                                                Sigma.eta, mcmc.opts$nb.mcmc)$prob) +
              log(TruncatedNormal::mvNcdf(model$lb, model$ub, Gamma.eta, mcmc.opts$nb.mcmc)$prob)
          })
   return(f)
@@ -518,7 +543,7 @@ constrlogLikGrad <- function(par = model$kernParam$par, model,
                              estim.varnoise = FALSE) {
   # gradf <- nl.grad(par, constrlogLikFun, heps = 1e-9, model, parfixed, mcmc.opts)
   # gradf[parfixed] <- 0
-
+  
   if (estim.varnoise)
     parfixed <- c(parfixed, FALSE)
   
@@ -532,7 +557,7 @@ constrlogLikGrad <- function(par = model$kernParam$par, model,
   n <- length(par)
   hh <- rep(0, n)
   gradf <- rep(0, n)
-
+  
   # the gradient is computed only w.r.t. the parameters to be optimised
   idx_iter <- seq(n)
   idx_iter <- idx_iter[parfixed == FALSE]
@@ -622,7 +647,7 @@ logLikAdditiveFun <- function(par = unlist(purrr::map(model$kernParam, "par")),
     if (estim.varnoise)
       Kyy <- Kyy + varnoise*diag(nt)
     # ptm1 <- proc.time() - ptm1
-
+    
     ## Alternative computation using block matrices
     # ptm2 <- proc.time()
     # hfunBigPhi <- parse(text = paste("cbind(",
@@ -637,7 +662,7 @@ logLikAdditiveFun <- function(par = unlist(purrr::map(model$kernParam, "par")),
     # Kyy <- matrix(Kyy, nt, nt)
     # ptm2 <- proc.time() - ptm2
     # print(ptm2 - ptm1)
-
+    
     cholKyy <- t(chol(Kyy + model$nugget*diag(nt)))
     alpha <- forwardsolve(cholKyy, model$y)
     logDetKyy <- 2*sum(log(diag(cholKyy)))
@@ -674,7 +699,7 @@ logLikAdditiveGrad <- function(par = unlist(purrr::map(model$kernParam, "par")),
   
   u <- Gamma <- vector("list", ngroups)
   Phi <- vector("list", ngroups)
-
+  
   for (j in 1:ngroups)
     u[[j]] <- matrix(seq(0, 1, by = 1/(m[j]-1)), ncol = 1) # discretization vector
   
@@ -713,7 +738,7 @@ logLikAdditiveGrad <- function(par = unlist(purrr::map(model$kernParam, "par")),
       Kyy <- Kyy + Phi[[k]] %*% Gamma[[k]] %*% t(Phi[[k]])
     if (estim.varnoise)
       Kyy <- Kyy + varnoise*diag(nt)
-
+    
     ## Alternative computation using block matrices
     # hfunBigPhi <- parse(text = paste("cbind(",
     #                                  paste("Phi[[", 1:ngroups, "]]", sep = "", collapse = ","),
@@ -725,15 +750,15 @@ logLikAdditiveGrad <- function(par = unlist(purrr::map(model$kernParam, "par")),
     # bigGamma <- eval(hfunBigGamma)
     # Kyy <- bigPhi %*% bigGamma %*% t(bigPhi) + model$varnoise * diag(nt)
     # Kyy <- matrix(Kyy, nt, nt)
-
+    
     invKyy <- chol2inv(chol(Kyy + model$nugget*diag(nt)))
- 
+    
   }
-
+  
   gradKyyTemp <- c()
   idx_iter <- seq(length(par))
   idx_iter <- idx_iter[parfixed == FALSE]
-
+  
   alpha <- invKyy %*% model$y
   cteTermLik <- invKyy - alpha%*%t(alpha)
   gradf <- rep(0, length(par))
@@ -778,21 +803,16 @@ logLikAdditiveGrad <- function(par = unlist(purrr::map(model$kernParam, "par")),
 #' 
 #' @export
 logLikBlockAdditiveFun <- function(par = unlist(purrr::map(model$kernParam, "par")),
-                              model,
-                              parfixed = NULL, mcmc.opts = NULL,
-                              estim.varnoise = FALSE) {
-  m <- model$localParam$m
-  mt <- sum(m)
-  nt <- length(model$y) 
-  ngroups <- model$localParam$ngroups
+                                   model,
+                                   parfixed = NULL, mcmc.opts = NULL,
+                                   estim.varnoise = FALSE) {
+  nknots <- model$localParam$nknots
+  nobs <- length(model$y) 
+  nblocks <- model$localParam$nblocks
+  dim_block <- model$localParam$dim_block
   
-  u <- Gamma <- vector("list", ngroups)
-  Phi <- vector("list", ngroups) # to be computed once and called it
-  logDetGamma <- rep(0, ngroups)
-  invGamma <- vector("list", ngroups)
-  
-  for (j in 1:ngroups)
-    u[[j]] <- matrix(seq(0, 1, by = 1/(m[j]-1)), ncol = 1) # discretization vector
+  subdivision <- model$subdivision
+  partition <- model$localParam$partition
   
   if (estim.varnoise) {
     varnoise <- par[length(par)]
@@ -801,61 +821,49 @@ logLikBlockAdditiveFun <- function(par = unlist(purrr::map(model$kernParam, "par
     varnoise <- model$varnoise
   }
   
-  # computing the kernel matrix for the prior
-  for (k in 1:ngroups) {
-    Gamma[[k]] <- kernCompute(u[[k]], u[[k]], model$kernParam[[k]]$type,
-                              par[(k-1)*length(model$kernParam[[k]]$par) + 1:2])
-    Phi[[k]] <- basisCompute.lineqGP(model$x[, k], u[[k]])
+  # creating a list following the partition's structure
+  parList <- vector("list", nblocks)
+  parIdxInit <- 1
+  for (j in 1:nblocks) {
+    parIdxEnd <- sum(dim_block[1:j])+j
+    parList[[j]] <- par[parIdxInit:parIdxEnd]
+    parIdxInit <- parIdxEnd + 1
   }
   
-  if (mt < nt) {
-    hfunBigPhi <- parse(text = paste("cbind(",
-                                     paste("Phi[[", 1:ngroups, "]]", sep = "", collapse = ","),
-                                     ")", sep = ""))
-    bigPhi <- eval(hfunBigPhi)
-    cholGamma <- lapply(Gamma, function(x) t(chol(x)))
-    hfunBigCholGamma <- parse(text = paste("bdiag(",
-                                           paste("cholGamma[[", 1:ngroups, "]]", sep = "", collapse = ","),
-                                           ")", sep = ""))
-    bigCholGamma <- as.matrix(eval(hfunBigCholGamma))
-    PhibigCholGamma <- bigPhi %*% bigCholGamma
-    ILtPhitPhiL <- varnoise*diag(mt) + t(PhibigCholGamma) %*% PhibigCholGamma
-    cholILtPhitPhiL <- t(chol(ILtPhitPhiL))
-    Lschur <- forwardsolve(cholILtPhitPhiL, t(PhibigCholGamma))
-    invKyy <- (diag(nt) - t(Lschur)%*% Lschur)/varnoise
-    logDetKyy <- (nt-mt)*log(varnoise) + 2*sum(log(diag(cholILtPhitPhiL)))
+  # computing the kernel matrix for the prior and the basis functions
+  Gamma.var <- Gamma_var(subdivision, parList, model$kernParam$type)
+  Gamma.block <- Gamma_var_to_tensor(Gamma.var)
+  Phi.var <- Phi_per_var(subdivision, partition, model$x)
+  Phi.block <- Phi_var_to_tensor(Phi.var)
+  t_Phi.block <- block_compute(Phi.block, "transpose")
+  
+  #Computation of the inverse of the mid term in the most efficient way
+  In <- diag(nobs)  
+  if (nobs <= 2*nknots) {
+    Gammat_Phi.block <- block_compute(Gamma.block, "prod",  t_Phi.block)
+    Phi_Gammat_Phi.block <- block_compute(Phi.block, "prod", Gammat_Phi.block)
+    Kyy <- block_to_matrix(Phi_Gammat_Phi.block, "sum") + varnoise*In
+    cholKyy <- t(chol(Kyy + model$nugget*In))
     
-    f <- 0.5*(logDetKyy + nrow(invKyy)*log(2*pi) + t(model$y)%*%invKyy%*%model$y)
-  } else {
-    # ptm1 <- proc.time()
-    Kyy <- matrix(0, nt, nt)
-    for (k in 1:ngroups)
-      Kyy <- Kyy + Phi[[k]] %*% Gamma[[k]] %*% t(Phi[[k]])
-    if (estim.varnoise)
-      Kyy <- Kyy + varnoise*diag(nt)
-    # ptm1 <- proc.time() - ptm1
-    
-    ## Alternative computation using block matrices
-    # ptm2 <- proc.time()
-    # hfunBigPhi <- parse(text = paste("cbind(",
-    #                                  paste("Phi[[", 1:ngroups, "]]", sep = "", collapse = ","),
-    #                                  ")", sep = ""))
-    # bigPhi <- eval(hfunBigPhi)
-    # hfunBigGamma <- parse(text = paste("bdiag(",
-    #                                    paste("Gamma[[", 1:ngroups, "]]", sep = "", collapse = ","),
-    #                                    ")", sep = ""))
-    # bigGamma <- eval(hfunBigGamma)
-    # Kyy <- bigPhi %*% bigGamma %*% t(bigPhi) + model$varnoise * diag(nt)
-    # Kyy <- matrix(Kyy, nt, nt)
-    # ptm2 <- proc.time() - ptm2
-    # print(ptm2 - ptm1)
-    
-    cholKyy <- t(chol(Kyy + model$nugget*diag(nt)))
     alpha <- forwardsolve(cholKyy, model$y)
     logDetKyy <- 2*sum(log(diag(cholKyy)))
+    f <- 0.5*(logDetKyy + nobs*log(2*pi) + t(alpha) %*% alpha)
+  } else {
+    invVarnoise <- 1/varnoise
+    cholGamma.block <- block_compute(Gamma.block, "chol")
+    invGamma.block <- block_compute(cholGamma.block, "chol2inv")
+    detGamma.block <- block_compute(Gamma.block, "det")
     
-    f <- 0.5*(logDetKyy + nrow(cholKyy)*log(2*pi) + t(alpha) %*% alpha)
+    Phi <- block_to_matrix(Phi.block, "cbind")
+    t_Phi <- block_to_matrix(t_Phi.block, "rbind")
+    t_PhiPhi <- t_Phi%*%Phi
+    
+    mid.term <- as.matrix(block_to_matrix(invGamma.block) + invVarnoise*t_PhiPhi)
+    invKyy <- invVarnoise*(In - invVarnoise*Phi %*% chol2inv(chol(mid.term)) %*% t_Phi)
+    detKyy <- varnoise^nobs * prod(detGamma.block) * det(mid.term)
+    f <- 0.5*(log(detKyy) + nobs*log(2*pi) + t(model$y)%*%invKyy%*%model$y)
   }
+  
   return(f)
 }
 
@@ -876,19 +884,16 @@ logLikBlockAdditiveFun <- function(par = unlist(purrr::map(model$kernParam, "par
 #'
 #' @export
 logLikBlockAdditiveGrad <- function(par = unlist(purrr::map(model$kernParam, "par")), 
-                               model,  parfixed = rep(FALSE, model$d*length(par)),
-                               mcmc.opts = NULL,
-                               estim.varnoise = FALSE) {
-  m <- model$localParam$m
-  mt <- sum(m)
-  nt <- length(model$y) 
-  ngroups <- model$localParam$ngroups
+                                    model,  parfixed = rep(FALSE, model$d*length(par)),
+                                    mcmc.opts = NULL,
+                                    estim.varnoise = FALSE) {
+  nknots <- model$localParam$nknots
+  nobs <- length(model$y) 
+  nblocks <- model$localParam$nblocks
+  dim_block <- model$localParam$dim_block
   
-  u <- Gamma <- vector("list", ngroups)
-  Phi <- vector("list", ngroups)
-  
-  for (j in 1:ngroups)
-    u[[j]] <- matrix(seq(0, 1, by = 1/(m[j]-1)), ncol = 1) # discretization vector
+  subdivision <- model$subdivision
+  partition <- model$localParam$partition
   
   if (estim.varnoise) {
     varnoise <- par[length(par)]
@@ -897,49 +902,48 @@ logLikBlockAdditiveGrad <- function(par = unlist(purrr::map(model$kernParam, "pa
     varnoise <- model$varnoise
   }
   
-  # computing the kernel matrix for the prior
-  for (k in 1:ngroups) {
-    Gamma[[k]] <- kernCompute(u[[k]], u[[k]], model$kernParam[[k]]$type,
-                              par[(k-1)*length(model$kernParam[[k]]$par) + 1:2])
-    Phi[[k]] <- basisCompute.lineqGP(model$x[, k], u[[k]])
+  # creating a list following the partition's structure
+  parList <- vector("list", nblocks)
+  parIdxInit <- 1
+  for (j in 1:nblocks) {
+    parIdxEnd <- sum(dim_block[1:j])+j
+    parList[[j]] <- par[parIdxInit:parIdxEnd]
+    parIdxInit <- parIdxEnd + 1
   }
   
-  if (mt < nt) {
-    hfunBigPhi <- parse(text = paste("cbind(",
-                                     paste("Phi[[", 1:ngroups, "]]", sep = "", collapse = ","),
-                                     ")", sep = ""))
-    bigPhi <- eval(hfunBigPhi)
-    cholGamma <- lapply(Gamma, function(x) t(chol(x)))
-    hfunBigCholGamma <- parse(text = paste("bdiag(",
-                                           paste("cholGamma[[", 1:ngroups, "]]", sep = "", collapse = ","),
-                                           ")", sep = ""))
-    bigCholGamma <- as.matrix(eval(hfunBigCholGamma))
-    PhibigCholGamma <- bigPhi %*% bigCholGamma
-    ILtPhitPhiL <- varnoise*diag(mt) + t(PhibigCholGamma) %*% PhibigCholGamma
-    cholILtPhitPhiL <- t(chol(ILtPhitPhiL))
-    Lschur <- forwardsolve(cholILtPhitPhiL, t(PhibigCholGamma))
-    invKyy <- (diag(nt) - t(Lschur)%*% Lschur)/varnoise
+  # computing the kernel matrix for the prior and the basis functions
+  Gamma.var <- Gamma_var(subdivision, parList, model$kernParam$type)
+  Gamma.block <- Gamma_var_to_tensor(Gamma.var)
+  Phi.var <- Phi_per_var(subdivision, partition, model$x)
+  Phi.block <- Phi_var_to_tensor(Phi.var)
+  t_Phi.block <- block_compute(Phi.block, "transpose")
+  
+  #Computation of the inverse of the mid term in the most efficient way
+  In <- diag(nobs)  
+  if (nobs <= 2*nknots) {
+    Gammat_Phi.block <- block_compute(Gamma.block, "prod",  t_Phi.block)
+    Phi_Gammat_Phi.block <- block_compute(Phi.block, "prod", Gammat_Phi.block)
+    Kyy <- block_to_matrix(Phi_Gammat_Phi.block, "sum") + varnoise*In
+    cholKyy <- t(chol(Kyy + model$nugget*In))
+    invKyy <- chol2inv(t(cholKyy))
+    
+    alpha <- forwardsolve(cholKyy, model$y)
+    logDetKyy <- 2*sum(log(diag(cholKyy)))
+    f <- 0.5*(logDetKyy + nobs*log(2*pi) + t(alpha) %*% alpha)
   } else {
-    Kyy <- matrix(0, nt, nt)
-    for (k in 1:ngroups)
-      Kyy <- Kyy + Phi[[k]] %*% Gamma[[k]] %*% t(Phi[[k]])
-    if (estim.varnoise)
-      Kyy <- Kyy + varnoise*diag(nt)
+    invVarnoise <- 1/varnoise
+    cholGamma.block <- block_compute(Gamma.block, "chol")
+    invGamma.block <- block_compute(cholGamma.block, "chol2inv")
+    detGamma.block <- block_compute(Gamma.block, "det")
     
-    ## Alternative computation using block matrices
-    # hfunBigPhi <- parse(text = paste("cbind(",
-    #                                  paste("Phi[[", 1:ngroups, "]]", sep = "", collapse = ","),
-    #                                  ")", sep = ""))
-    # bigPhi <- eval(hfunBigPhi)
-    # hfunBigGamma <- parse(text = paste("bdiag(",
-    #                                    paste("Gamma[[", 1:ngroups, "]]", sep = "", collapse = ","),
-    #                                    ")", sep = ""))
-    # bigGamma <- eval(hfunBigGamma)
-    # Kyy <- bigPhi %*% bigGamma %*% t(bigPhi) + model$varnoise * diag(nt)
-    # Kyy <- matrix(Kyy, nt, nt)
+    Phi <- block_to_matrix(Phi.block, "cbind")
+    t_Phi <- block_to_matrix(t_Phi.block, "rbind")
+    t_PhiPhi <- t_Phi%*%Phi
     
-    invKyy <- chol2inv(chol(Kyy + model$nugget*diag(nt)))
-    
+    mid.term <- as.matrix(block_to_matrix(invGamma.block) + invVarnoise*t_PhiPhi)
+    invKyy <- invVarnoise*(In - invVarnoise*Phi %*% chol2inv(chol(mid.term)) %*% t_Phi)
+    detKyy <- varnoise^nobs * prod(detGamma.block) * det(mid.term)
+    f <- 0.5*(log(detKyy) + nobs*log(2*pi) + t(model$y)%*%invKyy%*%model$y)
   }
   
   gradKyyTemp <- c()
@@ -948,16 +952,19 @@ logLikBlockAdditiveGrad <- function(par = unlist(purrr::map(model$kernParam, "pa
   
   alpha <- invKyy %*% model$y
   cteTermLik <- invKyy - alpha%*%t(alpha)
-  gradf <- rep(0, length(par))
-  for (k in 1:ngroups) {
-    gradGammaSigma2 <- attr(Gamma[[k]], 'gradient')[[1]]
-    gradKyySigma2 <- Phi[[k]] %*% gradGammaSigma2 %*% t(Phi[[k]])
-    gradf[(k-1)*length(model$kernParam[[k]]$par) + 1] <- 0.5*sum(diag(cteTermLik %*% gradKyySigma2))
+  gradf.perBlock <- parList # we initialise the structure
+  for (j in 1:nblocks) {
+    gradGammaSigma2 <- attr(Gamma.block[[j]], 'gradient')[[1]]
+    gradKyySigma2 <- Phi.block[[j]] %*% gradGammaSigma2 %*% t(Phi.block[[j]])
+    gradf.perBlock[[j]][1] <- 0.5*sum(diag(cteTermLik %*% gradKyySigma2))
     
-    gradGammaTheta <- attr(Gamma[[k]], 'gradient')[[2]]
-    gradKyyTheta <- Phi[[k]] %*% gradGammaTheta %*% t(Phi[[k]])
-    gradf[(k-1)*length(model$kernParam[[k]]$par) + 2] <- 0.5*sum(diag(cteTermLik %*% gradKyyTheta))
+    for (k in 1:dim_block[j]) {
+      gradGammaTheta <- attr(Gamma.block[[j]], 'gradient')[[k+1]]
+      gradKyyTheta <- Phi.block[[j]] %*% gradGammaTheta %*% t(Phi.block[[j]])
+      gradf.perBlock[[j]][k+1] <- 0.5*sum(diag(cteTermLik %*% gradKyyTheta))
+    }
   }
+  gradf <- unlist(gradf.perBlock)
   gradf[parfixed == TRUE] <- 0
   
   if (estim.varnoise) {
