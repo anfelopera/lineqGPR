@@ -157,7 +157,7 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 10*ncol(model$x),
 #' @importFrom utils tail
 #' @export
 
-MaxModCriterionBAGP <- function(model, iter, pred , option_name , option, constrType="none",
+MaxModCriterionBAGP <- function(model, iter, pred , option_name, option, constrType="none",
                                       reward_new_dim, reward_new_knot,activeVar) {
   if (iter == 1) {#iter==1 mean that the partition is empty
     model_update <- create(class = "lineqBAGP", x = model$x, y = model$y,

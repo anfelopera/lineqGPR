@@ -602,14 +602,14 @@ seq_int <- function(subdivision){
 #' @description Give the vector E defined in the article.
 #'
 #' @param subdivision of type list(list(sequence)) the subdivisions of [0,1] 
-#' 
 #' @return the integral fo each hat function described by the subdivision
 #'
 #' @author M. Deronzier and A. F. Lopez-Lopera
 #' 
 #' @export
 
-Mat_E <- function(subdivision, J = length(subdivision)){
+Mat_E <- function(subdivision){
+  J <- length(subdivision)
   E <- vector("list", J)
   for (j in 1:J){
     E[[j]] <- eval(parse(text = 
