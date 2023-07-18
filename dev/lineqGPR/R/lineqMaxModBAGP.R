@@ -2,7 +2,7 @@
 #' @description A wrapper function for the maximum Modification algorithm.
 #' 
 #' @param model an object with class \code{lineqGP} or \code{lineqBAGP}
-#' @param xtest test data for assessing the modification of the MAP estimate
+# #' @param xtest test data for assessing the modification of the MAP estimate
 #' @param tol a number corresponding to the tolerance of algorithm.
 #' The algorithm stops if the (MaxMod criterion)/norm(pred_old) < tol
 #' @param max_iter an integer corresponding to number of iterations
@@ -11,6 +11,9 @@
 #' @param print_iter a logical variable to print results at each iteration
 #' @param nClusters an integer corresponding to the number of clusters
 #' @param save_history a logical variable to save the model at each iteration
+#' @param xtest a vector of element we want to try our predictions
+#' @param constrType a string that indicate the constraint we want that our predictor satisfies 
+#'
 # #' @param MCtest a logical variable to approximate MaxMod criterion via MC
 #' 
 #' @return an object with class \code{lineqGP} or \code{lineqBAGP} containing the resulting model
@@ -20,8 +23,8 @@
 #' @export
 BAGPMaxMod <- function(model, xtest=0,  max_iter = 10*ncol(model$x),
                        reward_new_knot, reward_new_dim = 1e-9,
-                       print_iter = FALSE, nClusters = 1,
-                       save_history = FALSE, constrType #contrType not handled for the moment
+                       print_iter = FALSE, nClusters = 1, tol = 1e-9,
+                       save_history = FALSE, constrType #contrType not handled for the moment,
                        ){
   D <- ncol(model$x)
   #Initialisation of the variables 
@@ -82,6 +85,9 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 10*ncol(model$x),
     partition <- new.model$partition
     nblock <- new.model$localParam$nblocks
     activeVar[[choice[1]]] <- TRUE
+    if (maximum<tol){
+      return(model)
+    }
   }
     #Here we should update the history of the choices
       
@@ -91,20 +97,20 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 10*ncol(model$x),
 
 #' #' @title MaxMod criterion for \code{"lineqGP"} Models
 #' #' @description MaxMod criterion used to add a new knot or a new active dimension (see Bachoc et al., 2020)
-#' #' 
+#' #'
 #' #' @param model an object with class \code{lineqGP}
 #' #' @param ulist a list with the location of the knots
 #' #' @param xtest test data for assessing the modification of the MAP estimate
 #' #' @param activeDim a sequence containing the active dimensions
-#' #' @param activeDim_IdxSeq a sequence containing the indices of the actived input dimensions 
+#' #' @param activeDim_IdxSeq a sequence containing the indices of the actived input dimensions
 #' #' @param idx_add index of the dimension to be activated
 #' #' @param reward_new_dim a number corresponding to the reward of adding a new dimension
 #' #' @param reward_new_knot a number corresponding to the reward of adding a new knot in an existing dimension
-#' #' @param iter an integer corresponding to the iteration of the MaxMod algorithm 
+#' #' @param iter an integer corresponding to the iteration of the MaxMod algorithm
 #' #' @param pred an object with class \code{lineqGP} containing the predictive model
-#' #' 
-#' #' @return the value of the knot that minimize the MaxMod criterion and the 
-#' #' value of the objective function 
+#' #'
+#' #' @return the value of the knot that minimize the MaxMod criterion and the
+#' #' value of the objective function
 #' #'
 #' #' @author A. F. Lopez-Lopera
 #' #'
@@ -114,7 +120,7 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 10*ncol(model$x),
 #' #' <arXiv:2009.04188>
 #' #'
 #' #' @export
-#' #' 
+#' #'
 #' MaxModCriterion <- function(model, iter, pred , option_name , option,
 #'                             reward_new_dim, reward_new_knot
 #' ) {
@@ -135,15 +141,14 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 10*ncol(model$x),
 #' @description MaxMod criterion used to add a new knot or a new active dimension (see Bachoc et al., 2020)
 #' 
 #' @param model an object with class \code{lineqBAGP}
-#' @param subdivision a list with the location of the knots
-#' @param xtest test data for assessing the modification of the MAP estimate
-#' @param activeDim a sequence containing the active dimensions
-#' @param activeDim_IdxSeq a sequence containing the indices of the actived input dimensions 
-#' @param options_expand Choice of the algorithm MaxMod
 #' @param reward_new_dim a number corresponding to the reward of adding a new dimension
 #' @param reward_new_knot a number corresponding to the reward of adding a new knot in an existing dimension
 #' @param iter an integer corresponding to the iteration of the MaxMod algorithm 
 #' @param pred an object with class \code{lineqBAGP} containing the predictive model
+#' @param constrType string that indicates the type of constraint that our predictor should satisfy
+#' @param option_name string that indicates in which case we are for the construction of the partition
+#' @param option is an element of type numeric that indicate a variable or a couple (variable,block)
+#' @param activeVar a sequence of boolean, activeVar[i] indicates if i is activated or not 
 # #' @param MCtest a logical variable to approximate MaxMod criterion via MC
 #' 
 #' @return the value of the knot that minimize the MaxMod criterion and the 
@@ -224,7 +229,7 @@ MaxModCriterionBAGP <- function(model, iter, pred , option_name, option, constrT
 #' @param choice the choice made for the variable where there will be a refinement of the subdivision   
 #' @param t the position of the refinement
 #' @param reward_new_knot a number corresponding to the reward of adding a new knot in an existing dimension
-#' @param NscaLe the number of knots we want to add
+# #' @param NscaLe the number of knots we want to add
 #' @return the modification of the MAP estimate after adding a new knot
 #'
 #' @author A. F. Lopez-Lopera
@@ -237,7 +242,8 @@ MaxModCriterionBAGP <- function(model, iter, pred , option_name, option, constrT
 #' @export
 
 construct_t <- function(t, model, choice,
-                        reward_new_knot = 1e-6, Nscale = 1) {
+                        reward_new_knot = 1e-6 #Nscale = 1
+                        ) {
   # pred <- predict(model, xtest = xtest)
   subdivision2 <- model$subdivision
   pos <- bijection(model$partition, choice[1])
