@@ -47,7 +47,7 @@ subdivision2[[1]][[2]]<-sort(c(subdivision2[[1]][[2]], 0.333))
 model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
                 constrType = rep("monotonicity", nblocks), 
                 partition = partition,
-                subdivision =subdivision
+                subdivision = subdivision
                 )
 
 # modifying the covariance parameters of each block

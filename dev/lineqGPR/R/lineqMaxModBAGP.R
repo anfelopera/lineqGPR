@@ -176,7 +176,8 @@ MaxModCriterionBAGP <- function(model, iter, pred , option_name, option, constrT
       if (option_name=="case1"){# Creating a new block or a adding a knot in an already active variable
         if (activeVar[option[1]]){# Checking if the variable is already active Then adding a variable in an already active block
           new_t <- optimize(f = construct_t, interval = c(0, 1), model,
-                                   option[1], reward_new_knot = 1e-6, Nscale = 1)[[1]]
+                                   option[1], reward_new_knot = 1e-6#, Nscale = 1
+                            )[[1]]
           new.subdivision <- model$subdivision
           pos <- bijection(model$partition, option[1])
           new.subdivision[[pos[1]]][[pos[2]]] <- sort(c(model$subdivision[[pos[1]]][[pos[2]]], new_t))
