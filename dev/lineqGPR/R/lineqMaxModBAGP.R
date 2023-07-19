@@ -44,7 +44,8 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 10*ncol(model$x),
     #Construction of the different choices
     #print("iteration:",iter, "partition:",partition)
     inactiveVar <- which(activeVar==FALSE)
-    if (iter==1){
+    all_active <- eval(parse(text = paste("activeVar[", 1:D,"]", sep = "", collapse = "&&")))
+    if (iter==1 | all_active){
       options_expand <- as.list(c(1:D))
     } else{
       options <- expand.grid(inactiveVar,c(1:nblock))
@@ -83,6 +84,7 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 10*ncol(model$x),
     model <- new.model
     pred <- predict(model,0)
     partition <- new.model$partition
+    subdivision <- new.model$subdivision
     nblock <- new.model$localParam$nblocks
     activeVar[[choice[1]]] <- TRUE
     if (maximum<tol){
