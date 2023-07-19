@@ -9,4 +9,4 @@ demToyLineqMaxModGP_Monotonicity5D  An example using GPs under monotonicity cons
 demToyLineqMaxModAGP_Monotonicity2D  A 2D example using additive GPs under monotonicity constraints via MaxMod algorithm
 demToyLineqMaxModAGP_Monotonicity5D  A 5D example using additive GPs under monotonicity constraints via MaxMod algorithm
 demToyLineqMaxModBAGP_Monotonicity3D A 3D example using block additive GPs under monotonicity constraints via MaxMod algorithm
-demToyLineqMaxModBAGP_Monotonicity8D A 3D example using block additive GPs under monotonicity constraints via MaxMod algorithm
+demToyLineqMaxModBAGP_Monotonicity8D A 8D example using block additive GPs under monotonicity constraints via MaxMod algorithm
