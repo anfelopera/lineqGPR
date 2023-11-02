@@ -24,10 +24,9 @@
 #' @export
 BAGPMaxMod <- function(model, xtest=0,  max_iter = 5*ncol(model$x),
                        reward_new_knot, reward_new_dim = 1e-9,
-                       print_iter = FALSE, nClusters = 1, tol = 1e-9,
+                       print_iter = FALSE, nClusters = 20, tol = 5e-8,
                        save_history = FALSE, constrType, #contrType not handled for the moment,
-                       Block_max_size = 4
-                       ){
+                       Block_max_size = 4){
   D <- ncol(model$x)
   #Initialisation of the variables 
   partition <-list()
@@ -42,7 +41,24 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 5*ncol(model$x),
   #rownames(MaxMod_iter_values) <- c("MaxMod criterion", "knot's position", "decision")
   #colnames(MaxMod_iter_values) <- paste("dim", 1:D)
   
-  #Start of the loop 
+  if (nClusters > 1) {
+    if (!requireNamespace("foreach", quietly = TRUE))
+      stop("Package \"foreach\" not found")
+    if (!requireNamespace("doParallel", quietly = TRUE))
+      stop("Package \"doParallel\" not found")
+    
+    nClusters_max <- max(parallel::detectCores(), 1)
+    if (nClusters > nClusters_max) {
+      warning("The maximum number of clusters has been exceeded.
+      Further computations will consider only ", nClusters_max, " clusters")
+      nClusters <- nClusters_max
+    }
+    
+    cl <- parallel::makeCluster(nClusters)
+    doParallel::registerDoParallel(cl)
+  }
+  
+  #Start of the while loop 
   while((iter < max_iter)&& criteria>1e-7) { #Number of iterations we'll do
     #Construction of the different choices
     #print("iteration:",iter, "partition:",partition)
@@ -56,54 +72,67 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 5*ncol(model$x),
     } else{
       options_expand <- as.list(c(1:D))
     }
-    for (i in 1:length(options_expand)) {
-      if (i<=D){
-        option_name <- "case1"
-      } else{
-        option_name <- "case2"
-      }
-      print(paste("iter:",iter," i:", i, " choice:", options_expand[[i]]))
-      MaxModcriterion_temp <- MaxModCriterionBAGP(model, iter, pred,
-                                              option_name,
-                                              options_expand[[i]],
-                                              constrType,
-                                              reward_new_dim,
-                                              reward_new_knot,
-                                              activeVar,
-                                              Block_max_size)
-      print(paste("Criteria = ", MaxModcriterion_temp[[2]], sep= ""))
-      if(i==1){#Initialisation of the minimum value
-        new.model <- MaxModcriterion_temp[[1]]
-        maximum <- MaxModcriterion_temp[[2]]
-        choice <- options_expand[[i]]
-        option_chosen <- option_name
-        print("Max for the subdivision Subdivision")
-        print(MaxModcriterion_temp[[1]]$subdivision )
-      } else {#The value has been initialized check if the new model is better or not
-        if (MaxModcriterion_temp[[2]]>maximum){
-          new.model <- MaxModcriterion_temp[[1]]
+    if (nClusters==1) {
+      for (i in 1:length(options_expand)) {
+        print(paste("iter:", iter, " i:", i, " choice:", options_expand[[i]]))
+        MaxModcriterion_temp <- MaxModCriterionBAGP(
+          model,iter,pred,
+          options_expand,i,
+          constrType,
+          reward_new_dim,
+          reward_new_knot,
+          activeVar,
+          Block_max_size)
+        print(paste("Criteria = ", MaxModcriterion_temp[[2]], sep = ""))
+        if (i == 1) {
+          #Initialisation of the minimum value
+          imax <- 1
           maximum <- MaxModcriterion_temp[[2]]
-          choice <- options_expand[[i]]
-          option_chosen <- option_name
           print("Max for the subdivision Subdivision")
-          print(MaxModcriterion_temp[[1]]$subdivision )
+          print(MaxModcriterion_temp[[1]]$subdivision)
+        } else {
+          #The value has been initialized check if the new model is better or not
+          if (MaxModcriterion_temp[[2]] > maximum) {
+            imax <- i
+            maximum <- MaxModcriterion_temp[[2]]
+            print("Max for the subdivision Subdivision")
+            print(MaxModcriterion_temp[[1]]$subdivision)
+          }
         }
       }
+    } else if (nClusters >1) {
+      Criteria <-
+        try(foreach::"%dopar%"(foreach::foreach(i = (1:length(options_expand)),
+          .combine = cbind,.errorhandling ='remove'),
+        {
+          MaxModCriterionBAGP(
+            model,iter,pred,
+            options_expand, i,
+            constrType, reward_new_dim,
+            reward_new_knot, activeVar,
+            Block_max_size)[[2]]
+        }))
+      maximum <- max(Criteria)
+      imax <- which(Criteria == maximum)
+      
     }
-    
     # Update of variables
-    model <- new.model
-    pred <- predict(model,0)
-    partition <- new.model$partition
-    subdivision <- new.model$subdivision
-    nblock <- new.model$localParam$nblocks
-    activeVar[[choice[1]]] <- TRUE
+    model <- MaxModCriterionBAGP(model,iter,pred,options_expand,imax,constrType,
+                 reward_new_dim,reward_new_knot,activeVar,Block_max_size)[[1]]
+    #pred <- predict(model,0)
+    partition <- model$partition
+    subdivision <- model$subdivision
+    nblock <- model$localParam$nblocks
+    activeVar[options_expand[[imax]][1]] <- TRUE
     if (maximum<tol){
       return(model)
     }
+    iter <- iter+1
+    print(model$subdivision)
   }
-    #Here we should update the history of the choices
-      
+  
+  #Here we should update the history of the choices
+  
   return(model) 
 }
 
@@ -176,9 +205,16 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 5*ncol(model$x),
 #' @importFrom utils tail
 #' @export
 
-MaxModCriterionBAGP <- function(model, iter, pred , option_name, option, constrType="none",
-                                      reward_new_dim, reward_new_knot,activeVar, Block_max_size) {
-  if (iter == 1) {#iter==1 mean that the partition is empty
+MaxModCriterionBAGP <- function(model, iter, pred , options_expand, i, constrType="none",
+                                reward_new_dim, reward_new_knot,activeVar, Block_max_size) {
+  D <- ncol(model$x)
+  if (i<=D){ #Incrementing a variable 
+    option_name <- "case1"
+  } else{ #Merging two blocks
+    option_name <- "case2"
+  }
+  option <- options_expand[[i]]
+  if (iter == 1) { #iter==1 mean that the partition is empty
     model_update <- create(class = "lineqBAGP", x = model$x, y = model$y,
                            constrType ="none", 
                            partition = list(option),
@@ -190,15 +226,15 @@ MaxModCriterionBAGP <- function(model, iter, pred , option_name, option, constrT
     if (option_name=="case1"){# Creating a new block or a adding a knot in an already active variable
       if (activeVar[option[1]]){# Checking if the variable is already active
         new_t <- optimize(f = construct_t, interval = c(0, 1), model,
-                                   option[1], reward_new_knot = 1e-6#, Nscale = 1
-                            )[[1]]
+                          option[1], reward_new_knot = 1e-6#, Nscale = 1
+        )[[1]]
         new.subdivision <- model$subdivision
         pos <- bijection(model$partition, option[1])
         new.subdivision[[pos[1]]][[pos[2]]] <- sort(c(model$subdivision[[pos[1]]][[pos[2]]], new_t))
         model_update <- create(class = "lineqBAGP", x = model$x, y = model$y,
-                              constrType = model$constrType,
-                                partition = model$partition,
-                                subdivision = new.subdivision)
+                               constrType = model$constrType,
+                               partition = model$partition,
+                               subdivision = new.subdivision)
       } else {
         new.partition <- model$partition
         new.subdivision <- model$subdivision
@@ -206,31 +242,31 @@ MaxModCriterionBAGP <- function(model, iter, pred , option_name, option, constrT
         new.subdivision[[model$nblock + 1]] <- vector("list",1)
         new.subdivision[[model$nblock + 1]][[1]] <- c(0,1)
         model_update <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
-                              constrType = rep(constrType, (model$nblock+1)),
-                              partition = new.partition,
-                              subdivision = new.subdivision)
+                               constrType = rep(constrType, (model$nblock+1)),
+                               partition = new.partition,
+                               subdivision = new.subdivision)
       }
-      } else if (option_name=="case2"){#We're merging two blocks
-        size_basis <- lapply(lapply(model$subdivision, function(j) sapply(j, function(k) length(k))),
-                             function(j) prod(j))
-        block_size <- lapply(model$partition, function(x) length(x))
-        if ((size_basis[option[[1]]]==2 && size_basis[[option[2]]]==2) || option[1]==option[2] ||
-            (block_size[[option[1]]]+block_size[[option[2]]])>Block_max_size){ 
-          #Checking if the blocks are allowed to ber merged
-          return(list(model, 0))
-        } else{
-          new.param <- merge_block(model$partition,model$subdivision, option[1],option[2])
-          new.partition <- new.param[[1]]
-          new.subdivision <- new.param[[2]]
-          model_update <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
-                                constrType = model$constrType,
-                                partition = new.partition,
-                                subdivision = new.subdivision
+    } else if (option_name=="case2"){#We're merging two blocks
+      size_basis <- lapply(lapply(model$subdivision, function(j) sapply(j, function(k) length(k))),
+                           function(j) prod(j))
+      block_size <- lapply(model$partition, function(x) length(x))
+      if ((size_basis[option[[1]]]==2 && size_basis[[option[2]]]==2) || option[1]==option[2] ||
+          (block_size[[option[1]]]+block_size[[option[2]]])>Block_max_size){ 
+        #Checking if the blocks are allowed to ber merged
+        return(list(model, 0))
+      } else{
+        new.param <- merge_block(model$partition,model$subdivision, option[1],option[2])
+        new.partition <- new.param[[1]]
+        new.subdivision <- new.param[[2]]
+        model_update <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
+                               constrType = model$constrType,
+                               partition = new.partition,
+                               subdivision = new.subdivision
         )
-        }
       }
-      criteria <- square_norm_int(model, model_update)
     }
+    criteria <- square_norm_int(model, model_update)
+  }
   return(list(model_update, criteria))
 }
 
@@ -256,7 +292,7 @@ MaxModCriterionBAGP <- function(model, iter, pred , option_name, option, constrT
 
 construct_t <- function(t, model, choice,
                         reward_new_knot = 1e-6 #Nscale = 1
-                        ) {
+) {
   # pred <- predict(model, xtest = xtest)
   subdivision2 <- model$subdivision
   pos <- bijection(model$partition, choice[1])
