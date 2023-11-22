@@ -306,7 +306,8 @@ errorMeasureRegressMC <- function(y, ytest, ysamples, type = "all",
 #'       \deqn{\boldsymbol{l} \leq \boldsymbol{A x} \leq \boldsymbol{u}.}{l \le A x \le u.}
 #'
 #'     - \code{oneside} : Extended linear system given by
-#'       \deqn{\boldsymbol{M x} + \boldsymbol{g} \geq \boldsymbol{0} \quad \mbox{with} \quad \boldsymbol{M} = [\boldsymbol{A}, -\boldsymbol{A}]^\top \quad \mbox{and} \quad \boldsymbol{g} = [-\boldsymbol{l}, \boldsymbol{u}]^\top.}{M x + g \ge 0 with M = [A, -A]^T and g = [-l, u]^T.}
+#'       \deqn{\boldsymbol{M x} + \boldsymbol{g} \geq \boldsymbol{0} \quad \mbox{with} \quad \boldsymbol{M} = [\boldsymbol{A}, -\boldsymbol{A}]^\top
+#'        \quad \mbox{and} \quad \boldsymbol{g} = [-\boldsymbol{l}, \boldsymbol{u}]^\top.}{M x + g \ge 0 with M = [A, -A]^T and g = [-l, u]^T.}
 #' @param rmInf If \code{TRUE}, inactive constraints are removed
 #' (e.g. \eqn{-\infty \leq x \leq \infty}{-Inf \le x \le Inf}).
 #' 

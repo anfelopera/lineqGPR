@@ -2,7 +2,7 @@ library("lineqGPR")
 library("DiceDesign")
 library("plot3D")
 library("viridis")
-
+library("sensitivity") #Caculer les indices de Sobol
 rm(list=ls())
 set.seed(7)
 
@@ -11,20 +11,24 @@ d <- 3 # number of active input variables
 partition <- list(c(1,3), 2) # partition of the block structure
 nblocks <- length(partition) # nb of blocks
 
+# targetFun <- function(x, partition)
+#   return(3*x[, 1]*x[, 3] + sin(3*x[, 2]))
+# 
 targetFun <- function(x, partition)
-  return(x[, 1]*x[, 3] + x[, 2])
+   return (log(1+3*x[, 1]+x[, 3]) + sin(2*pi*x[, 2]))
 
+# sobol()
 # building Latin hypercube sampling (LHS) design 
-nbtrain <- 4*d
+nbtrain <- 30*d
 xdesign <- lhsDesign(nbtrain, d, seed = 0)$design
-# xdesign <- maximinSA_LHS(xdesign)$design
+xdesign <- maximinSA_LHS(xdesign)$design
 
 # adding extra training points with second block's variable = 0
 nbextra <- 4
 xdesign2 <- matrix(0, nbextra, d)
 xdesign2[, partition[[1]]] <- maximinSA_LHS(lhsDesign(nbextra, 2, seed = 0)$design)$design
-# xdesign <- rbind(xdesign, xdesign2)
-xdesign <- matrix(runif(3*500, min=0, max=1), ncol=3)
+xdesign <- rbind(xdesign, xdesign2)
+#xdesign <- matrix(runif(3*500, min=0, max=1), ncol=3)
 ydesign <- targetFun(xdesign, partition)
 
 # defining the 3D grid for predictions 
@@ -51,21 +55,24 @@ model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
                 subdivision = subdivision
                 )
 
-new.model <- BAGPMaxMod(model, max_iter = 10*ncol(model$x),
-                        reward_new_knot = 1e-4, reward_new_dim = 1e-9,
-                        print_iter = FALSE, nClusters = 1,
-                        save_history = FALSE, constrType="none"
-)
+# new.model <- BAGPMaxMod(model, max_iter = 7*ncol(model$x),
+#                         reward_new_knot = 1e-4, reward_new_dim = 1e-9,
+#                         print_iter = FALSE, nClusters = 5, tol= 1e-7,
+#                         save_history = FALSE, constrType="none"
+# )[[1]]
 
+#model <- new.model
 # modifying the covariance parameters of each block
 for (k in 1:nblocks)
   model$kernParam$par[[k]] <- c(1, rep(0.5, model$localParam$dim_block[k]))
+
+
 model$localParam$sampler <- "HMC"
 model$nugget <- 1e-5
 model <- lineqGPOptim(model,
                       additive = TRUE, # if the model is additive
                       block = TRUE, # if the model is additive per blocks
-                      estim.varnoise = TRUE, # to add this info at the MaxMod level
+                      estim.varnoise = FALSE, # to add this info at the MaxMod level
                       bounds.varnoise = c(1e-7, Inf), # to add this info at the MaxMod level
                       lb = rep(1e-2, model$d+model$localParam$nblocks),
                       ub = c(Inf, 0.7, 0.7, Inf, 0.7), # to add this info at the MaxMod level

@@ -75,13 +75,19 @@
 #' @export
 
 create.lineqBAGP <- function(x, y, constrType,
-                             partition = as.list(seq(ncol(x))),
+                             partition = NULL,
                              subdivision = NULL,
-                             subdivision_size = NULL) {
+                             subdivision_size = NULL
+                             ) {
   # changing the data as matrices
-  if (!is.matrix(x))
+  if (is.null(partition)&&is.null(subdivision)){
+    model <- list(x = x, y = y, constrType = constrType,  subdivision = subdivision,
+                  partition = partition)
+    return(model)
+  }
+  if (!is.matrix(x)) 
     x <- as.matrix(x)
-  if (!is.matrix(y) || ncol(y) != 1)
+  if (!is.matrix(y) || ncol(y) != 1) 
     y <- matrix(y)
   
   d <- ncol(x) # dimension of the input space
@@ -403,10 +409,10 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   
   nblocks <- model$localParam$nblocks
   dim_block <- model$localParam$dim_block
-  subdivision <- model$localParam$subdivision
+  subdivision <- model$subdivision
   subdivision_size <- model$localParam$subdivision_size
   block_tensor_size <- sapply(subdivision_size, prod)
-  partition <- model$localParam$partition
+  partition <- model$partition
   inv_tau <- 1/model$varnoise
     
   nobs <- length(model$y) # nb of training points 
