@@ -6,14 +6,16 @@ library("viridis")
 
 rm(list=ls())
 set.seed(7)
-
 #### Synthetic data ####
 d <- 8 # number of active input variables
-partition1 <- list(2,3,c(7,8), c(1,4))
+partition1 <- list(2,3,c(1,8), c(1,4))
 partition2 <- list(c(2,3,7,8), c(1,4,5))
+partition3 <- list(c(1,2), c(3,4,6), c(5,7))
 subdivision1 <- list(list(c(0,0.3,1)),list(c(0,1)), list(c(0,0.4,1),c(0,1)), list(c(0,0.1,1),c(0,1)))
 subdivision2 <- list(list(c(0,0.3,1),c(0,0.3,0.7,1),c(0,0.4,0.6,0.7,1),c(0,0.5,1)),
                      list(c(0,0.1,0.3,1), c(0,0.7,1),c(0,1)))
+subdivision3 <- list(list(c(0,1),c(0,1)),list(c(0,1),c(0,1),c(0,1)),
+                     list(c(0,1), c(0,1)))
 partition <- list(2,3,c(7,8), c(1,4))
 subdivision <- list(list(c(0,0.3,1)),list(c(0,1)), list(c(0,0.4,1),c(0,1)), list(c(0,0.1,1),c(0,1)))
 
@@ -28,20 +30,23 @@ dim_block1 <- sapply(partition1, function(x) length(x))
 dim_block2 <- sapply(partition2, function(x) length(x))
 
 targetFun <- function(x, partition) {
-  return(10*x[, 1]*x[, 2] + x[, 3]*x[, 4]*x[, 6] + x[, 5]*x[, 7])
+  return(10*x[, 1]*x[, 2] + 3*x[, 3]*x[, 4]*x[, 6] + x[, 5]*x[, 7])
 }
 
 d <- 8 
-# building Latin hypercube sampling (LHS) design 
-nbtrain <- 4*d
-#xdesign <- lhsDesign(nbtrain, d, seed = 0)$design
-# xdesign <- maximinSA_LHS(xdesign)$design
-set.seed(1)
-xdesign <- matrix(runif(8*400, min=0, max=1), ncol=8)
+# building Latin hypercube sampling (LHS) design
+#set.seed(1)
+#xdesign <- matrix(runif(8*100, min=0, max=1), ncol=8)
+
+nbtrain <- 10*d
+xdesign <- lhsDesign(nbtrain, d, seed = 0)$design
+xdesign <- maximinSA_LHS(xdesign)$design
 ydesign <- targetFun(xdesign,partition2)
 
 ntest <- 300
 xtest <- lhsDesign(ntest, d, seed = 0)$design
+ytest <- targetFun(xtest,partition2)
+
 # xtest <- maximinSA_LHS(xtest)$design
 
 
@@ -59,14 +64,32 @@ model2 <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
                  partition = partition2,
                  subdivision =subdivision2
 )
+model3 <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
+                 constrType = rep("monotonicity", length(partition3)), 
+                 partition = partition3,
+                 subdivision =subdivision3
+)
+new.model1 <- optimise.parameters(model1)
 
-criteria <- square_norm_int(model1,model2)
+#new.model3 <- optimise.parameters(model3)
+#new.model3$kernParam <- model3$kernParam
+#new.model3$varnoise <- 1e-5 #model3$varnoise
+#pred1 <- predict(model3, xtest)$y.mean
+#pred2 <- predict(new.model3, xtest)$y.mean
+
+#mean((pred1-ytest)^2)
+#mean((pred2-ytest)^2)
+###############################################################################
+
+
+
+criteria <- square_norm_int(model1,new.model1)
 
 
 
 new.model <- BAGPMaxMod(model1, max_iter = 10*ncol(model1$x),
                        reward_new_knot = 1e-4, reward_new_dim = 1e-9,
-                       print_iter = FALSE, nClusters = 1,
+                       print_iter = FALSE, nClusters = 10,
                        save_history = FALSE, constrType="none"
                        )
 
@@ -137,7 +160,6 @@ sum((pred0$y.mode-pred2$y.mode)**2)/100000
 square_norm_int(model0,model1)
 square_norm_int(model0,model2)
 
-
-
+str(new.model3)
 
 

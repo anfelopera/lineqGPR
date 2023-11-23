@@ -18,6 +18,7 @@
 #' into account in the optimization.
 #' @param additive an optional logical. If \code{TRUE}, the likelihood of an additive GP model
 #' is computed in the optimization.
+#' @param block a boolean indicating if the model is additiv or block additiv
 #' @param mcmc.opts if \code{add.constr}, mcmc options passed to methods.
 #' @param max.trials the value of the maximum number of trials when errors are produced by instabilities.
 #' @param ... further arguments passed to or from other methods.
@@ -41,9 +42,9 @@ lineqGPOptim <- function(model,
                          lb = rep(0.01, length(x0)),
                          ub = rep(Inf, length(x0)),
                          opts = list(algorithm = "NLOPT_LD_MMA",
-                                     print_level = 0,
+                                     print_level = 1,
                                      ftol_abs = 1e-3,
-                                     maxeval = 50,
+                                     maxeval = 30,
                                      check_derivatives = FALSE,
                                      parfixed = rep(FALSE, length(x0))),
                          seed = 1,
