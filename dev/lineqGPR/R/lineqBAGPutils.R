@@ -756,3 +756,45 @@ merge_block <- function(partition,subdivision, n1, n2){
   }
   return(list(new_partition, new_subdivision))
 }
+
+
+
+#' @title Merge block (\code{"lineqBAGP"})
+#' @description take a partition and subdivision and  the numero of blocks to merge
+#' 
+#' 
+#' @param partition a partition
+#' @param subdivision a subdivision
+#' @param n1 an integer corresponding to the first block to merge
+#' @param n2 an integer corresponding to the second block to merge
+#' 
+#' @return partition and subdivision of the merged model
+#'
+#' @author M. Deronzier 
+#'
+#' @references F. Bachoc, A. F. Lopez-Lopera, and O. Roustant (2020),
+#' "Sequential construction and dimension reduction of Gaussian processes under inequality constraints".
+#' \emph{ArXiv e-prints}
+#' <arXiv:2009.04188>
+#'
+#' @export
+
+merge_param <- function(model1,model2){
+  partition1 <- vector("list", length(partition)-1)
+  subdivision1 <- vector("list", length(partition)-1)
+  if(length(partition)>2){
+    for (i in 2:(length(partition)-1)){
+      partition1[[i]] <- partition[[setdiff(1:length(partition),c(n1,n2))[i-1]]]
+      subdivision1[[i]] <- subdivision[[setdiff(1:length(partition),c(n1,n2))[i-1]]]
+    }
+  }
+  partition1[[1]] <- c(partition[[n1]],partition[[n2]])
+  subdivision1[[1]] <- c(subdivision[[n1]],subdivision[[n2]])
+  new_partition <- lapply(partition1, function(x) sort(x))
+  new_subdivision <- subdivision1
+  for (i in 1:length(partition1[[1]])){
+    pos<-bijection(partition1, new_partition[[1]][i])
+    new_subdivision[[1]][[i]]<- subdivision1[[pos[1]]][[pos[2]]]
+  }
+  return(list(new_partition, new_subdivision))
+}
