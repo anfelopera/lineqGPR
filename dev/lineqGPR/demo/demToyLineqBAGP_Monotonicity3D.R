@@ -12,7 +12,7 @@ partition <- list(c(1,3), 2) # partition of the block structure
 nblocks <- length(partition) # nb of blocks
 
 targetFun <- function(x, partition)
-  return(x[, partition[[1]][1]]*x[, partition[[1]][2]] + x[, partition[[2]][1]])
+  return(x[, 1]*x[, 3] + x[, 2])
 
 # building Latin hypercube sampling (LHS) design 
 nbtrain <- 4*d
@@ -23,7 +23,8 @@ xdesign <- lhsDesign(nbtrain, d, seed = 0)$design
 nbextra <- 4
 xdesign2 <- matrix(0, nbextra, d)
 xdesign2[, partition[[1]]] <- maximinSA_LHS(lhsDesign(nbextra, 2, seed = 0)$design)$design
-xdesign <- rbind(xdesign, xdesign2)
+# xdesign <- rbind(xdesign, xdesign2)
+xdesign <- matrix(runif(3*500, min=0, max=1), ncol=3)
 ydesign <- targetFun(xdesign, partition)
 
 # defining the 3D grid for predictions 
@@ -50,6 +51,12 @@ model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
                 subdivision = subdivision
                 )
 
+new.model <- BAGPMaxMod(model, max_iter = 10*ncol(model$x),
+                        reward_new_knot = 1e-4, reward_new_dim = 1e-9,
+                        print_iter = FALSE, nClusters = 1,
+                        save_history = FALSE, constrType="none"
+)
+
 # modifying the covariance parameters of each block
 for (k in 1:nblocks)
   model$kernParam$par[[k]] <- c(1, rep(0.5, model$localParam$dim_block[k]))
@@ -70,6 +77,7 @@ model <- lineqGPOptim(model,
                       maxeval = 50,
                       check_derivatives = TRUE)
 )
+
 model.sim <- simulate(model, nsim = 1e3, seed = 0, xtest = xtest)
 
 #### Assessment of predictions ####
