@@ -116,46 +116,65 @@ create.lineqBAGP <- function(x, y, constrType,
   
   # creating some lists for the model
   
-  localParam <- list(subdivision = subdivision, subdivision_size = subdivision_size,
-                     sampler = "ExpT", nblocks = nblocks, partition = partition, dim_block = dim_block, 
+  localParam <- list(subdivision_size = subdivision_size,
+                     sampler = "ExpT", nblocks = nblocks, dim_block = dim_block, 
                      samplingParams = c(thinning = 1, burn.in = 1, scale = 0.1))
   
   ##  to be adapted to deal with componentwise constraints per blocks 
-  constrFlags <- rep(1, nblocks) # to be checked later 
   # constrFlags <- lapply(subdivision_size, function(sub_temp) rep(1, length(sub_temp)))
   
   kernParam <- list()
   kernParam$type <- "matern52" # to consider different kernels per blocks
   kernParam$par <- constrParam <- vector("list", nblocks)
   names(constrParam) <- paste("block", 1:nblocks, sep = "")
+  
+  # to initialize the list objects with the correct names
+  constrTypePartition <- constrFlag <- partition
+  
+  
   for (j in 1:nblocks) { # to be checked later! We will focus on the monotonicity constraint
     kernParam$par[[j]] <- c(sigma2 = 1^2, theta = rep(0.1, dim_block[j]))
-    switch (constrType[j],
-            boundedness = {
-              constrParam[[j]]$bounds <- c(lower = min(y) - 0.05*abs(max(y) - min(y)),
-                                           upper = max(y) + 0.05*abs(max(y) - max(y)))
-            }, monotonicity = {
-              constrParam[[j]]$bounds <- c(0, Inf)
-            }, decreasing = {
-              constrParam[[j]]$bounds <- c(0, Inf)
-            }, convexity = {
-              constrParam[[j]]$bounds <- c(0, Inf)
-            }, linear = { # to be checked!
-              # imposing positiveness constraints by default
-              constrParam[[j]]$Lambda <- diag(prod(model$localParam$m))
-              constrParam[[j]]$lb <- rep(0, nrow(model$Lambda))
-              constrParam[[j]]$ub <- rep(Inf, nrow(model$Lambda))
-            }, none = {
-              constrParam[[j]]$bounds <- c(-Inf, Inf)
-              constrFlags[j] <- 0
-            }
-    )
+    
+    nvar <- length(partition[[j]])
+    constrParam[[j]] <- vector("list", nvar) 
+    names(constrParam[[j]]) <- names(partition[[j]])
+    for (k in 1:nvar) {
+      constrFlag[[j]][k] <- 1
+      idxVar <- partition[[j]][k]
+      constrTypePartition[[j]][k] <- constrType[idxVar]
+  
+      switch (constrType[idxVar],
+              boundedness = {
+                constrParam[[j]][[k]]$bounds <- c(lower = min(y) - 0.05*abs(max(y) - min(y)),
+                                             upper = max(y) + 0.05*abs(max(y) - max(y)))
+              }, monotonicity = {
+                constrParam[[j]][[k]]$bounds <- c(0, Inf)
+              }, decreasing = {
+                constrParam[[j]][[k]]$bounds <- c(0, Inf)
+              }, convexity = {
+                constrParam[[j]][[k]]$bounds <- c(0, Inf)
+              }, linear = { # to be checked!
+                # imposing positiveness constraints by default
+                constrParam[[j]][[k]]$Lambda <- diag(prod(model$localParam$m))
+                constrParam[[j]][[k]]$lb <- rep(0, nrow(model$Lambda))
+                constrParam[[j]][[k]]$ub <- rep(Inf, nrow(model$Lambda))
+              }, none = {
+                constrParam[[j]][[k]]$bounds <- c(-Inf, Inf)
+                constrFlag[[j]][k] <- 0
+              }
+      )
+    }
+    
+    
   }
-  constrIdx <- which(constrFlags == 1) # to be checked !!
+  # constrIdx <- which(constrFlags == 1) # to be checked !!
   # creating the full list for the model
-  model <- list(x = x, y = y, constrType = constrType,  subdivision = subdivision,
+  constrIdx <- lapply(constrFlag,  function(x) which(x == 1))
+  
+  model <- list(x = x, y = y, constrType = constrTypePartition,  subdivision = subdivision,
                 partition = partition, d = d,  nugget = 1e-6, nblock = nblocks,
-                constrIdx = constrIdx, constrParam = constrParam, nknots = nknots,
+                constrIdx = constrIdx, 
+                constrParam = constrParam, nknots = nknots,
                 varnoise = 0.05*sd(y)^2,  localParam = localParam, kernParam = kernParam)
   return(model)
 }
@@ -225,11 +244,11 @@ augment.lineqBAGP <- function(x, ...) {
   model <- x
   if (!("nugget" %in% names(model)))
     model$nugget <- 0
-  if ("bounds" %in% names(model)) {
-    bounds <- model$bounds
-  } else {
-    bounds <- c(0, Inf)
-  }
+  # if ("bounds" %in% names(model)) {
+  #   bounds <- model$bounds
+  # } else {
+  #   bounds <- c(0, Inf)
+  # }
   
   # passing some terms from the model
   x <- model$x
@@ -254,24 +273,64 @@ augment.lineqBAGP <- function(x, ...) {
   m.block <- rep(0, nblocks)
   names(M.block) <- names(g.block) <- names(m.block) <- paste("block", 1:nblocks, sep = "")
   for (j in 1:nblocks) {
-    if (model$constrType[j] == "linear") { #to be checked!
-      if (!("Lambda" %in% names(model)))
+    if (length(model$constrType[[j]]) == 1 && model$constrType[[j]] == "linear") { # to be checked!
+      if (!("Lambda" %in% names(constrParam[[j]])))
         stop('matrix Lambda is not defined')
       Lambda <- model$constrParam[[j]]$Lambda
       lb <- model$constrParam[[j]]$lb
       ub <- model$constrParam[[j]]$ub
-      lsys <- lineqGPSys(nrow(Lambda), model$constrType[j], lb, ub,
+      lsys <- lineqGPSys(nrow(Lambda), model$constrType[[j]], lb, ub,
                          Lambda, lineqSysType = "oneside")
-      lsys2 <- lineqGPSys(nrow(Lambda), model$constrType[j], lb, ub,
+      lsys2 <- lineqGPSys(nrow(Lambda), model$constrType[[j]], lb, ub,
                           Lambda, rmInf = FALSE)
     } else {
-      bounds <- model$constrParam[[j]]$bounds
+      nvar <- length(partition[[j]])
+      
+      bounds <- t(sapply(1:nvar, function(k) model$constrParam[[j]][[k]]$bounds))
       
       # The constraints are imposed over all the variables in a block
-      lsys <- lineqGPSys(subdivision_size[[j]], model$constrType[[j]], bounds[1], bounds[2],
-                         constrIdx = 1:length(subdivision_size[[j]]), lineqSysType = "oneside")
-      lsys2 <- lineqGPSys(subdivision_size[[j]], model$constrType[[j]], bounds[1], bounds[2],
-                          constrIdx = 1:length(subdivision_size[[j]]), rmInf = FALSE)
+      # lsys <- lineqGPSys(subdivision_size[[j]], model$constrType[[j]], bounds[,1], bounds[,2],
+      #                    constrIdx = model$constrIdx[[k]], lineqSysType = "oneside")
+      
+      temp <- sapply(1:nvar,
+                     function(k) lineqGPSys(subdivision_size[[j]][k], model$constrType[[j]][k], bounds[k,1], bounds[k,2],
+                                            constrIdx = model$constrIdx[[j]][k], lineqSysType = "twosides", rmInf = FALSE))
+      
+      Abase <- temp[1, ]
+      lbase <- temp[2, ]
+      ubase <- temp[3, ]
+      Idiag <- lapply(as.list(model$localParam$subdivision_size[[j]]), diag)
+      ones <- lapply(Idiag, diag)
+      
+      Anames <- matrix(paste("Idiag[[", seq(nvar),"]]", sep = ""),
+                       nvar, nvar, byrow = TRUE)
+      diag(Anames) <- paste("Abase[[",seq(nvar),"]]", sep = "")
+      lbnames <- matrix(paste("ones[[",seq(nvar),"]]", sep = ""),
+                        nvar, nvar, byrow = TRUE)
+      diag(lbnames) <- paste("lbase[[",seq(nvar),"]]", sep = "")
+      ubnames <- matrix(paste("ones[[",seq(nvar),"]]", sep = ""),
+                        nvar, nvar, byrow = TRUE)
+      diag(ubnames) <- paste("ubase[[",seq(nvar),"]]", sep = "")
+      A <- l <- u <- c()
+      for (k in model$constrIdx[[j]]) {
+        Atemp <- eval(parse(text = paste(Anames[k, ], collapse = " %x% ")))
+        A <- rbind(A, Atemp)
+        lbtemp <- eval(parse(text = paste(lbnames[k, ], collapse = " %x% ")))
+        l <- c(l, lbtemp)
+        ubtemp <- eval(parse(text = paste(ubnames[k, ], collapse = " %x% ")))
+        u <- c(u, ubtemp)
+      }
+      lsys <- bounds2lineqSys(nrow(A), l, u, A, lineqSysType = "oneside")
+      lsys2 <- bounds2lineqSys(nrow(A), l, u, A, rmInf = FALSE)
+        
+      
+      # lsys <- lapply(1:nvar, function(k)
+      #                  lineqGPSys(subdivision_size[[j]][k], model$constrType[[j]][k], bounds[k,1], bounds[k,2],
+      #                             constrIdx = model$constrIdx[[j]][k], lineqSysType = "oneside"))
+      # lsys2 <-  lapply(1:nvar, 
+      #                  function(k) lineqGPSys(subdivision_size[[j]][k], model$constrType[[j]][k], bounds[k,1], bounds[k,2],
+      #                                                 constrIdx = model$constrIdx[[j]][k], rmInf = FALSE))
+      
       
       model$constrParam[[j]]$Lambda <- lsys2$A
       model$constrParam[[j]]$lb <- lsys2$l

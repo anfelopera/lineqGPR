@@ -813,7 +813,7 @@ logLikBlockAdditiveFun <- function(par = unlist(purrr::map(model$kernParam, "par
   dim_block <- model$localParam$dim_block
   
   subdivision <- model$subdivision
-  partition <- model$localParam$partition
+  partition <- model$partition
   
   if (estim.varnoise) {
     varnoise <- par[length(par)]
@@ -894,7 +894,7 @@ logLikBlockAdditiveGrad <- function(par = unlist(purrr::map(model$kernParam, "pa
   dim_block <- model$localParam$dim_block
   
   subdivision <- model$subdivision
-  partition <- model$localParam$partition
+  partition <- model$partition
   
   if (estim.varnoise) {
     varnoise <- par[length(par)]
