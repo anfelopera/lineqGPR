@@ -524,6 +524,7 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   } else {
     mid.term <- inv_tau*(In-inv_tau*Phi %*%
                            chol2inv(chol(block_to_matrix(invGamma.block) + inv_tau*t_PhiPhi)) %*% t_Phi)
+    #message("computation of mu using Woodbury formula")
   }
   Gammat_Phimid.term <- Gammat_Phi %*% mid.term
   xi.mean <- Gammat_Phimid.term %*% model$y

@@ -120,7 +120,6 @@ Phi_per_var <- function(subdivision, partition, x){
 #' 
 #' @export
 Phi_var_to_tensor <- function(Phi.perVar){
-  
   nblocks <- length(Phi.perVar)
   dim_block <- sapply(Phi.perVar, function(x) length(x))
   
@@ -336,8 +335,8 @@ bijection <- function(partition, i){
   }
 }
 
-#' @title Name
-#' @description description  
+#' @title Block product matrices
+#' @description Algorithm returning for two blocks matrices A, B the matrice per block A[i]*B[j] 
 #' 
 #' @param A A list containing matrices
 #' @param B A list containing matrices
@@ -737,38 +736,44 @@ square_norm_int <- function(model1,model2){
 #'
 #' @export
 
-merge_block <- function(partition,subdivision, n1, n2){
+merge_block <- function(partition, subdivision, kernParam, n1, n2){
   partition1 <- vector("list", length(partition)-1)
   subdivision1 <- vector("list", length(partition)-1)
+  kernParam1 <- vector("list",2)
+  names(kernParam1) <- names(kernParam)[1:2]
+  kernParam1$type <- kernParam$type
+  kernParam1$par <- vector("list", length(partition)-1)
   if(length(partition)>2){
     for (i in 2:(length(partition)-1)){
       partition1[[i]] <- partition[[setdiff(1:length(partition),c(n1,n2))[i-1]]]
       subdivision1[[i]] <- subdivision[[setdiff(1:length(partition),c(n1,n2))[i-1]]]
+      kernParam1$par[[i]] <- kernParam$par[[setdiff(1:length(partition),c(n1,n2))[i-1]]]
     }
   }
   partition1[[1]] <- c(partition[[n1]],partition[[n2]])
   subdivision1[[1]] <- c(subdivision[[n1]],subdivision[[n2]])
-  new_partition <- lapply(partition1, function(x) sort(x))
-  new_subdivision <- subdivision1
+  kernParam1$par[[1]] <- c(kernParam$par[[n1]][1]+kernParam$par[[n2]][1],
+                           kernParam$par[[n1]][-1], kernParam$par[[n2]][-1])
+  new.partition <- lapply(partition1, function(x) sort(x))
+  new.subdivision <- subdivision1
+  new.kernParam <- kernParam
   for (i in 1:length(partition1[[1]])){
-    pos<-bijection(partition1, new_partition[[1]][i])
-    new_subdivision[[1]][[i]]<- subdivision1[[pos[1]]][[pos[2]]]
+    pos<-bijection(partition1, new.partition[[1]][i])
+    new.subdivision[[1]][[i]]<- subdivision1[[pos[1]]][[pos[2]]]
+    new.kernParam$par[[1]][i+1] <- kernParam1$par[[pos[1]]][pos[2]+1]
   }
-  return(list(new_partition, new_subdivision))
+  return(list(new.partition, new.subdivision, new.kernParam))
 }
 
 
 
-#' @title Merge block (\code{"lineqBAGP"})
-#' @description take a partition and subdivision and  the numero of blocks to merge
+#' @title Rename
+#' @description rename the parameters of the model  
 #' 
 #' 
-#' @param partition a partition
-#' @param subdivision a subdivision
-#' @param n1 an integer corresponding to the first block to merge
-#' @param n2 an integer corresponding to the second block to merge
+#' @param model a model
 #' 
-#' @return partition and subdivision of the merged model
+#' @return the model with the variables renamed
 #'
 #' @author M. Deronzier 
 #'
@@ -779,22 +784,13 @@ merge_block <- function(partition,subdivision, n1, n2){
 #'
 #' @export
 
-merge_param <- function(model1,model2){
-  partition1 <- vector("list", length(partition)-1)
-  subdivision1 <- vector("list", length(partition)-1)
-  if(length(partition)>2){
-    for (i in 2:(length(partition)-1)){
-      partition1[[i]] <- partition[[setdiff(1:length(partition),c(n1,n2))[i-1]]]
-      subdivision1[[i]] <- subdivision[[setdiff(1:length(partition),c(n1,n2))[i-1]]]
-    }
+rename <- function(model){
+  #names(model$subdivision) <- names(model$partition) <- paste("block", 1:length(model$partition), sep = "")
+  for (j in 1:length(model$partition)) {
+    names(model$partition[[j]]) <- names(model$subdivision[[j]]) <- paste("var", model$partition[[j]], sep = "")
+    names(model$kernParam$par[[j]]) <- c(paste("sigma", j, sep = ""), 
+                                         paste("var", model$partition[[j]], sep = ""))
+    
   }
-  partition1[[1]] <- c(partition[[n1]],partition[[n2]])
-  subdivision1[[1]] <- c(subdivision[[n1]],subdivision[[n2]])
-  new_partition <- lapply(partition1, function(x) sort(x))
-  new_subdivision <- subdivision1
-  for (i in 1:length(partition1[[1]])){
-    pos<-bijection(partition1, new_partition[[1]][i])
-    new_subdivision[[1]][[i]]<- subdivision1[[pos[1]]][[pos[2]]]
-  }
-  return(list(new_partition, new_subdivision))
+  return(model)
 }

@@ -8,20 +8,20 @@ rm(list=ls())
 set.seed(7)
 #### Synthetic data ####
 d <- 8 # number of active input variables
-partition1 <- list(2,3,c(1,8), c(1,4))
+partition1 <- list(7,8,c(1,4), c(2,3))
 partition2 <- list(c(2,3,7,8), c(1,4,5))
 partition3 <- list(c(1,2), c(3,4,6), c(5,7))
-subdivision1 <- list(list(c(0,0.3,1)),list(c(0,1)), list(c(0,0.4,1),c(0,1)), list(c(0,0.1,1),c(0,1)))
-subdivision2 <- list(list(c(0,0.3,1),c(0,0.3,0.7,1),c(0,0.4,0.6,0.7,1),c(0,0.5,1)),
-                     list(c(0,0.1,0.3,1), c(0,0.7,1),c(0,1)))
+subdivision1 <- list(list(c(0,0.3,1)),list(c(0,0.5,1)), list(c(0,0.4,1),c(0,1)), list(c(0,0.1,1),c(0,1)))
+subdivision2 <- list(list(c(0,0.1,0.3,1),c(0,0.3,0.7,1),c(0,0.3,0.4,0.6,0.7,1),c(0,0.5,1)),
+                     list(c(0,0.1,0.4,1), c(0,0.3,0.7,1),c(0,1)))
 subdivision3 <- list(list(c(0,1),c(0,1)),list(c(0,1),c(0,1),c(0,1)),
                      list(c(0,1), c(0,1)))
 partition <- list(2,3,c(7,8), c(1,4))
 subdivision <- list(list(c(0,0.3,1)),list(c(0,1)), list(c(0,0.4,1),c(0,1)), list(c(0,0.1,1),c(0,1)))
 
-sol <- merge_block(partition1,subdivision1,2,3)
+#sol <- merge_block(partition1,subdivision1,2,3)
 condition_changment_basis(partition1,partition2,subdivision1,subdivision2)
-condition_changment_basis(partition1,sol[[1]],subdivision1,sol[[2]])
+#condition_changment_basis(partition1,sol[[1]],subdivision1,sol[[2]])
 
 nblock1 <- length(partition1) #number of blocks in partition1 
 nblock2 <- length(partition2) #number of blocks in partition2
@@ -38,7 +38,7 @@ d <- 8
 #set.seed(1)
 #xdesign <- matrix(runif(8*100, min=0, max=1), ncol=8)
 
-nbtrain <- 10*d
+nbtrain <- 20*d
 xdesign <- lhsDesign(nbtrain, d, seed = 0)$design
 xdesign <- maximinSA_LHS(xdesign)$design
 ydesign <- targetFun(xdesign,partition2)
@@ -54,11 +54,10 @@ ytest <- targetFun(xtest,partition2)
 # creating the model
 
 model1 <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
-                constrType = rep("monotonicity", nblock1), 
+                constrType = rep("monotonicity", ncol(xdesign)), 
                 partition = partition1,
                 subdivision =subdivision1
 )
-
 model2 <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
                  constrType = rep("monotonicity", nblock2), 
                  partition = partition2,
@@ -70,6 +69,7 @@ model3 <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
                  subdivision =subdivision3
 )
 new.model1 <- optimise.parameters(model1)
+merged <- merge_block(new.model1$partition, new.model1$subdivision, new.model1$kernParam, 2, 3)
 
 #new.model3 <- optimise.parameters(model3)
 #new.model3$kernParam <- model3$kernParam
@@ -83,14 +83,12 @@ new.model1 <- optimise.parameters(model1)
 
 
 
-criteria <- square_norm_int(model1,new.model1)
-
-
+#criteria <- square_norm_int(model1,new.model1, same_basis = TRUE)
 
 new.model <- BAGPMaxMod(model1, max_iter = 10*ncol(model1$x),
                        reward_new_knot = 1e-4, reward_new_dim = 1e-9,
                        print_iter = FALSE, nClusters = 10,
-                       save_history = FALSE, constrType="none"
+                       GlobalconstrType= rep("monotonicity", ncol(model1$x))
                        )
 
 

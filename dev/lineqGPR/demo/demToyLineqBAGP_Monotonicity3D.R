@@ -47,20 +47,19 @@ for (j in 1:nblocks)
 subdivision2 <- subdivision
 subdivision2[[1]][[2]]<-sort(c(subdivision2[[1]][[2]], 0.333))
 
-
-constrType <- c("monotonicity", "boundedness", "none")
-
-
-
 #### Constrained model ####
 # creating the model
 model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
-                constrType = constrType, 
+                constrType = rep("monotonicity", nblocks), 
                 partition = partition,
                 subdivision = subdivision
                 )
 
-model <- augment(model)
+new.model <- BAGPMaxMod(model, max_iter = 10*ncol(model$x),
+                        reward_new_knot = 1e-4, reward_new_dim = 1e-9,
+                        print_iter = FALSE, nClusters = 1,
+                        GlobalconstrType= rep("none",3)
+                        )
 
 # new.model <- BAGPMaxMod(model, max_iter = 7*ncol(model$x),
 #                         reward_new_knot = 1e-4, reward_new_dim = 1e-9,
