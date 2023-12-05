@@ -709,7 +709,7 @@ square_norm_int <- function(model1,model2){
   products <- as.matrix(unlist(block_compute(block_compute(eta,"transpose"),"prod",E_block)))
   if (length(model1$partition)>length(model2$partition)){
     return((criteria + sum(products%x%products) - sum(sapply(products, function(x) x^2)))
-           /(model2$nknots-model1$nknots+1)^1)
+           /(model2$nknots-model1$nknots+2)^1)
   } else{
     return((criteria + sum(products%x%products) - sum(sapply(products, function(x) x^2)))
            /(model2$nknots-model1$nknots)^1)
@@ -722,6 +722,7 @@ square_norm_int <- function(model1,model2){
 #' 
 #' @param partition a partition
 #' @param subdivision a subdivision
+#' @param kernParam list of kernel parameters
 #' @param n1 an integer corresponding to the first block to merge
 #' @param n2 an integer corresponding to the second block to merge
 #' 
