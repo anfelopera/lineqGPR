@@ -94,8 +94,6 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 5*ncol(model$x),
         normmax <- Criteria[2,imax]
         Change <- TRUE
       }
-      print("Criteria : ")
-      print(Criteria)
     }
     if (!Change){
       message("Couldn't improve the prediction over observations")
@@ -103,6 +101,8 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 5*ncol(model$x),
         parallel::stopCluster(cl)
       return (list(model,history))
     }
+    print("Criteria : ")
+    print(Criteria)
     model <- MaxModCriterionBAGP(model, GlobalconstrType, options_expand, activeVar, iter, imax, 
                                  Block_max_size, reward_new_dim, reward_new_knot)[[1]]
     if (print_param){
@@ -129,7 +129,7 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 5*ncol(model$x),
     print(paste("imax :", imax, "  Criteria = ", maximum , "  diff_norm = ",
                 normmax, sep = ""))
     #print(subdivision)
-    print(partition)
+    print(subdivision)
     iter <- iter+1
   }
   if (nClusters > 1)
@@ -338,18 +338,23 @@ optimise.parameters <- function(model) {
 #' @export
 
 construct_t <- function(t, model, choice,
-                        reward_new_knot = 1e-6, GlobalconstrType #Nscale = 1
+                        reward_new_knot = 1e-4, GlobalconstrType
 ) {
-  subdivision2 <- model$subdivision
+  subdivision1 <- model$subdivision
   pos <- bijection(model$partition, choice[1])
-  subdivision2[[pos[1]]][[pos[2]]] <- sort(c(model$subdivision[[pos[1]]][[pos[2]]],t))
-  model2 <- create(class = "lineqBAGP", x = model$x, y = model$y,
+  subdivision1[[pos[1]]][[pos[2]]] <- sort(c(model$subdivision[[pos[1]]][[pos[2]]],t))
+  md <- min(dist(subdivision1[[pos[1]]][[pos[2]]]))
+  if( md < 1e-3 ){ #Test for stability inversion
+    return(1)
+  } 
+  model1 <- create(class = "lineqBAGP", x = model$x, y = model$y,
                    constrType = GlobalconstrType, 
                    partition = model$partition,
-                   subdivision = subdivision2)
-  model2$varnoise <- model$varnoise
-  model2$kernParam <- model$kernParam
-  return(-square_norm_int(model,model2))
+                   subdivision = subdivision1)
+  model1$varnoise <- model$varnoise
+  model1$kernParam <- model$kernParam
+  #+reward_new_knot*md
+  return(-(square_norm_int(model,model1)))
 }
 
 
