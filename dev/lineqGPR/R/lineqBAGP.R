@@ -175,7 +175,8 @@ create.lineqBAGP <- function(x, y, constrType,
                 partition = partition, d = d,  nugget = 1e-6, nblock = nblocks,
                 constrIdx = constrIdx, 
                 constrParam = constrParam, nknots = nknots,
-                varnoise = 0.05*sd(y)^2,  localParam = localParam, kernParam = kernParam)
+                varnoise = min(0.05*sd(y)^2, 1),
+                localParam = localParam, kernParam = kernParam)
   return(model)
 }
 
@@ -518,14 +519,14 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   Gammat_Phi <- block_to_matrix(Gammat_Phi.block, "rbind")
   
   #Computation of the inverse of the mid term in the most efficient way
-  if (nobs<=2*nknots) {
-    mid.term <- chol2inv(chol(block_to_matrix(block_compute(Phi.block, "prod", Gammat_Phi.block), "sum") + 
+  #if (nobs<=2*nknots) { 
+  mid.term <- chol2inv(chol(block_to_matrix(block_compute(Phi.block, "prod", Gammat_Phi.block), "sum") + 
                                 model$varnoise*In))
-  } else {
-    mid.term <- inv_tau*(In-inv_tau*Phi %*%
-                           chol2inv(chol(block_to_matrix(invGamma.block) + inv_tau*t_PhiPhi)) %*% t_Phi)
-    #message("computation of mu using Woodbury formula")
-  }
+   #} else {#Stability issue 
+   #  mid.term <- inv_tau*(In-inv_tau*Phi %*%
+   #                         chol2inv(chol(block_to_matrix(invGamma.block) + inv_tau*t_PhiPhi)) %*% t_Phi)
+   #message("computation of mu using Woodbury formula")
+   #}
   Gammat_Phimid.term <- Gammat_Phi %*% mid.term
   xi.mean <- Gammat_Phimid.term %*% model$y
   pred$xi.mean <- xi.mean
