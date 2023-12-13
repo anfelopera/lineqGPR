@@ -519,14 +519,29 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   Gammat_Phi <- block_to_matrix(Gammat_Phi.block, "rbind")
   
   #Computation of the inverse of the mid term in the most efficient way
-  #if (nobs<=2*nknots) { 
-  mid.term <- chol2inv(chol(block_to_matrix(block_compute(Phi.block, "prod", Gammat_Phi.block), "sum") + 
-                                model$varnoise*In))
-   #} else {#Stability issue 
-   #  mid.term <- inv_tau*(In-inv_tau*Phi %*%
-   #                         chol2inv(chol(block_to_matrix(invGamma.block) + inv_tau*t_PhiPhi)) %*% t_Phi)
-   #message("computation of mu using Woodbury formula")
-   #}
+  # if (nobs<=nknots) { 
+    # mid.term <- chol2inv(chol(block_to_matrix(
+    #   block_compute(Phi.block, "prod", Gammat_Phi.block)
+    #   , "sum") + model$varnoise*In))
+  # }
+  if (nknots<nobs){
+    cholGammat_Phi <- as.matrix(block_to_matrix(cholGamma.block, "bdiag")%*%t_Phi)
+    A <- cholGammat_Phi%*%t(cholGammat_Phi) + model$varnoise*diag(nknots)
+    cholA <- chol(A)
+    Lschur <- forwardsolve(t(cholA), cholGammat_Phi)
+    mid.term <- inv_tau*(diag(nobs)- t(Lschur)%*%Lschur)
+    #message("computation with Cholesky ")
+  } else {
+    mid.term <- chol2inv(chol(block_to_matrix(
+      block_compute(Phi.block, "prod", Gammat_Phi.block), "sum") + model$varnoise*In))
+  #message("computation Classic")
+  }
+    
+  #   {#Stability issue
+  #  mid.term2 <- inv_tau*(In-inv_tau*Phi %*% chol2inv(chol(block_to_matrix(invGamma.block)
+  #                                                        + inv_tau*t_PhiPhi)) %*% t_Phi)
+  # # message("computation of mu using Woodbury formula")
+  # }
   Gammat_Phimid.term <- Gammat_Phi %*% mid.term
   xi.mean <- Gammat_Phimid.term %*% model$y
   pred$xi.mean <- xi.mean
