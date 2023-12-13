@@ -59,14 +59,14 @@
 #' 
 #' # creating the model
 #' model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
-#'                 constrType = rep("monotonicity", nblocks),
+#'                 constrType = rep("monotonicity", ncol(xdesign)),
 #'                 partition = list(c(1,3), 2),
 #'                 subdivision = list(list(seq(0, 1, length = 3), seq(0, 1, length = 5)), 
 #'                                    list(c(0, 1))))
 #' str(model)
 #' 
 #' model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
-#'                 constrType = rep("monotonicity", nblocks),
+#'                 constrType = rep("monotonicity", ncol(xdesign)),
 #'                 partition = list(c(1, 3), 2),
 #'                 subdivision_size = list(c(3, 5), 2))
 #' str(model)
@@ -78,7 +78,7 @@ create.lineqBAGP <- function(x, y, constrType,
                              partition = NULL,
                              subdivision = NULL,
                              subdivision_size = NULL
-                             ) {
+) {
   # changing the data as matrices
   if (is.null(partition)&&is.null(subdivision)){
     model <- list(x = x, y = y, constrType = constrType,  subdivision = subdivision,
@@ -142,11 +142,11 @@ create.lineqBAGP <- function(x, y, constrType,
       constrFlag[[j]][k] <- 1
       idxVar <- partition[[j]][k]
       constrTypePartition[[j]][k] <- constrType[idxVar]
-  
+      
       switch (constrType[idxVar],
               boundedness = {
                 constrParam[[j]][[k]]$bounds <- c(lower = min(y) - 0.05*abs(max(y) - min(y)),
-                                             upper = max(y) + 0.05*abs(max(y) - max(y)))
+                                                  upper = max(y) + 0.05*abs(max(y) - max(y)))
               }, monotonicity = {
                 constrParam[[j]][[k]]$bounds <- c(0, Inf)
               }, decreasing = {
@@ -175,7 +175,8 @@ create.lineqBAGP <- function(x, y, constrType,
                 partition = partition, d = d,  nugget = 1e-6, nblock = nblocks,
                 constrIdx = constrIdx, 
                 constrParam = constrParam, nknots = nknots,
-                varnoise = 0.05*sd(y)^2,  localParam = localParam, kernParam = kernParam)
+                varnoise = min(0.05*sd(y)^2, 1),
+                localParam = localParam, kernParam = kernParam)
   return(model)
 }
 
@@ -228,7 +229,7 @@ create.lineqBAGP <- function(x, y, constrType,
 #' 
 #' # creating the model
 #' model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
-#'                 constrType = rep("monotonicity", nblocks),
+#'                 constrType = rep("monotonicity", ncol(xdesign)),
 #'                 partition = list(c(1, 3), 2),
 #'                 subdivision_size = list(c(3, 5), 2))
 #' str(model)
@@ -267,7 +268,7 @@ augment.lineqBAGP <- function(x, ...) {
   
   model$Gamma.var <- Gamma.var
   model$Phi.var <- Phi.var
-  
+  if (sum(unlist(model$constrType)!="none")>0){
   # precomputing the linear system for the QP solver and MCMC samplers
   M.block <- g.block <- vector("list", nblocks)
   m.block <- rep(0, nblocks)
@@ -322,7 +323,7 @@ augment.lineqBAGP <- function(x, ...) {
       }
       lsys <- bounds2lineqSys(nrow(A), l, u, A, lineqSysType = "oneside")
       lsys2 <- bounds2lineqSys(nrow(A), l, u, A, rmInf = FALSE)
-        
+      
       
       # lsys <- lapply(1:nvar, function(k)
       #                  lineqGPSys(subdivision_size[[j]][k], model$constrType[[j]][k], bounds[k,1], bounds[k,2],
@@ -349,7 +350,7 @@ augment.lineqBAGP <- function(x, ...) {
   model$lineqSys$M.block <- M.block # for QP solve
   model$lineqSys$g.block <- g.block # for QP solve
   model$localParam$m.block <- m.block # for HMC sampler
-
+  
   model$lineqSys$M <- eval(parse(text = paste("bdiag(",
                                               paste("M.block[[", 1:nblocks, "]]", sep = "", collapse = ","),
                                               ")", sep = "")))
@@ -359,7 +360,7 @@ augment.lineqBAGP <- function(x, ...) {
   model$lineqSys$Lambda <- eval(parse(text = paste("bdiag(",
                                                    paste("model$constrParam[[", 1:nblocks, "]]$Lambda",
                                                          sep = "", collapse = ","),
-                                                      ")", sep = "")))
+                                                   ")", sep = "")))
   model$lineqSys$Lambda <- matrix(model$lineqSys$Lambda, ncol = nknots)
   model$lineqSys$lb <- eval(parse(text = paste("c(",
                                                paste("model$constrParam[[", 1:nblocks, "]]$lb",
@@ -369,7 +370,7 @@ augment.lineqBAGP <- function(x, ...) {
                                                paste("model$constrParam[[", 1:nblocks, "]]$ub",
                                                      sep = "", collapse = ","),
                                                ")", sep = "")))
-
+  }
   return(model)
 }
 
@@ -441,7 +442,7 @@ augment.lineqBAGP <- function(x, ...) {
 #'
 #' # creating the model
 #' model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
-#'                 constrType = rep("monotonicity", nblocks), 
+#'                 constrType = rep("monotonicity", ncol(xdesign)), 
 #'                 partition = partition,
 #'                 subdivision_size = list(c(3, 5), 2))
 #'
@@ -473,7 +474,7 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   block_tensor_size <- sapply(subdivision_size, prod)
   partition <- model$partition
   inv_tau <- 1/model$varnoise
-    
+  
   nobs <- length(model$y) # nb of training points 
   nknots <- model$localParam$nknots # total nb of knots
   
@@ -493,7 +494,7 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   Phi <- block_to_matrix(Phi.block, "cbind")
   t_Phi.block <- block_compute(Phi.block, "transpose")
   t_Phi <- block_to_matrix(t_Phi.block, "rbind")
-    
+  
   # One Block matrix for testing our results
   
   #Phi.test.var <- Phi_per_var(subdivision,xtest)
@@ -518,28 +519,45 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   Gammat_Phi <- block_to_matrix(Gammat_Phi.block, "rbind")
   
   #Computation of the inverse of the mid term in the most efficient way
-  if (nobs<=2*nknots) {
-    mid.term <- chol2inv(chol(block_to_matrix(block_compute(Phi.block, "prod", Gammat_Phi.block), "sum") + 
-                                model$varnoise*In))
+  # if (nobs<=nknots) { 
+    # mid.term <- chol2inv(chol(block_to_matrix(
+    #   block_compute(Phi.block, "prod", Gammat_Phi.block)
+    #   , "sum") + model$varnoise*In))
+  # }
+  if (nknots<nobs){
+    cholGammat_Phi <- as.matrix(block_to_matrix(cholGamma.block, "bdiag")%*%t_Phi)
+    A <- cholGammat_Phi%*%t(cholGammat_Phi) + model$varnoise*diag(nknots)
+    cholA <- chol(A)
+    Lschur <- forwardsolve(t(cholA), cholGammat_Phi)
+    mid.term <- inv_tau*(diag(nobs)- t(Lschur)%*%Lschur)
+    #message("computation with Cholesky ")
   } else {
-    mid.term <- inv_tau*(In-inv_tau*Phi %*%
-                           chol2inv(chol(block_to_matrix(invGamma.block) + inv_tau*t_PhiPhi)) %*% t_Phi)
-    #message("computation of mu using Woodbury formula")
+    mid.term <- chol2inv(chol(block_to_matrix(
+      block_compute(Phi.block, "prod", Gammat_Phi.block), "sum") + model$varnoise*In))
+  #message("computation Classic")
   }
+    
+  #   {#Stability issue
+  #  mid.term2 <- inv_tau*(In-inv_tau*Phi %*% chol2inv(chol(block_to_matrix(invGamma.block)
+  #                                                        + inv_tau*t_PhiPhi)) %*% t_Phi)
+  # # message("computation of mu using Woodbury formula")
+  # }
   Gammat_Phimid.term <- Gammat_Phi %*% mid.term
   xi.mean <- Gammat_Phimid.term %*% model$y
   pred$xi.mean <- xi.mean
   pred$Sigma <- Gamma - Gammat_Phimid.term %*% t(Gammat_Phi)
   
   # pred$Sigma <- chol2inv(chol(invSigma))
-
-  pred$xi.mode <- as.matrix(solve.QP(invSigma, t(pred$xi.mean) %*% invSigma,
-                           t(model$lineqSys$M), model$lineqSys$g)$solution)
-  
+  if (sum(unlist(model$constrType)!="none")>0){
+    pred$xi.mode <- as.matrix(solve.QP(invSigma, t(pred$xi.mean) %*% invSigma,
+                                       t(model$lineqSys$M), model$lineqSys$g)$solution)
+  } else {
+    pred$xi.mode <- xi.mean
+  }
   
   pred$y.mean <- pred$Phi.test%*%pred$xi.mean
   pred$y.mode <- pred$Phi.test%*%pred$xi.mode
-
+  
   if (return_model)
     pred$model <- model
   return(pred)
@@ -605,7 +623,7 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
 #'
 #' # creating the model
 #' model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
-#'                 constrType = rep("monotonicity", nblocks), 
+#'                 constrType = rep("monotonicity", ncol(xdesign)), 
 #'                 partition = partition,
 #'                 subdivision_size = list(c(3, 5), 2))
 #'
