@@ -41,19 +41,16 @@ ytest <- targetFun(xtest, partition)
 nblock <- length(partition) # nb of blocks
 dim_block <- sapply(partition, function(x) length(x))
 
-m <- c(2, 4, 5)
+m <- c(2, 4, 7)
 subdivision <- vector("list", nblock)
 for (j in 1:nblocks)
   subdivision[[j]] <- lapply(1:dim_block[j],function(k) matrix(seq(0, 1, by = 1/(m[partition[[j]][k]]-1)), ncol = 1))
 subdivision2 <- subdivision
 subdivision2[[1]][[2]]<-sort(c(subdivision2[[1]][[2]], 0.333))
 
-
-constrType <- c("monotonicity", "convexity", "convexity")
-
-
 #### Constrained model ####
 # creating the model
+constrType <- c("monotonicity", "convexity", "convexity")
 model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
                 constrType = constrType, 
                 partition = partition,
@@ -75,13 +72,16 @@ for (k in 1:nblocks)
   model$kernParam$par[[k]] <- c(1, rep(0.5, model$localParam$dim_block[k]))
 
 
-# model$localParam$sampler <- "HMC"
+model$varnoise <- 1e-6
+
+model$localParam$sampler <- "HMC"
 model$nugget <- 1e-5
+
 model <- lineqGPOptim(model,
                       additive = TRUE, # if the model is additive
                       block = TRUE, # if the model is additive per blocks
-                      estim.varnoise = FALSE, # to add this info at the MaxMod level
-                      bounds.varnoise = c(1e-7, Inf), # to add this info at the MaxMod level
+                      estim.varnoise = TRUE, # to add this info at the MaxMod level
+                      bounds.varnoise = c(1e-7, 1e-2), # to add this info at the MaxMod level
                       lb = rep(1e-2, model$d+model$localParam$nblocks),
                       ub = c(Inf, 0.7, 0.7, Inf, 0.7), # to add this info at the MaxMod level
                       # ub = rep(Inf, model$d+model$localParam$nblocks),

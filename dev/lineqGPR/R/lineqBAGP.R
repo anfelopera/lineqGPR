@@ -313,7 +313,7 @@ augment.lineqBAGP <- function(x, ...) {
                         nvar, nvar, byrow = TRUE)
       diag(ubnames) <- paste("ubase[[",seq(nvar),"]]", sep = "")
       A <- l <- u <- c()
-      for (k in model$constrIdx[[j]]) {
+      for (k in 1:length(partition[[j]])) {
         Atemp <- eval(parse(text = paste(Anames[k, ], collapse = " %x% ")))
         A <- rbind(A, Atemp)
         lbtemp <- eval(parse(text = paste(lbnames[k, ], collapse = " %x% ")))
