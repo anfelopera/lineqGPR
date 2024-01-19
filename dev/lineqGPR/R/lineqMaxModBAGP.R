@@ -3,7 +3,8 @@
 #' 
 #' @param model an object with class \code{lineqGP} or \code{lineqBAGP}
 # #' @param xtest test data for assessing the modification of the MAP estimate
-#' @param tol a number corresponding to the tolerance of algorithm the precision we want over our predictor.
+#' @param tolCriteria a number corresponding to the tolerance of algorithm the precision we want over our predictor.
+#' @param tolPrecision a number corresponding to the tolerance of algorithm the precision we want over our predictor.
 #' The algorithm stops if the (MaxMod criterion)/norm(pred_old) < tol
 #' @param max_iter an integer corresponding to number of iterations
 #' @param reward_new_knot a number corresponding to the reward of adding a new knot in an existing dimension
@@ -28,7 +29,7 @@
 #' @export
 BAGPMaxMod <- function(model, xtest=0,  max_iter = 20*ncol(model$x),
                        reward_new_knot = 5e-6, reward_new_dim = 5e-5,
-                       nClusters = 5, tol = 1e-7, 
+                       nClusters = 5, tolCriteria = 1e-7, tolPrecision =1e-8, 
                        GlobalconstrType, Block_max_size = 5,
                        print_iter = FALSE, print_param = FALSE, 
                        save_history = TRUE, epsilon= 1e-3,
@@ -42,7 +43,10 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 20*ncol(model$x),
   pred <- NULL
   iter<- 1
   history <- list()
+  hist_Criteria <- c()
+  hist_diffnorm <- c()
   maxy <- max(model$y)
+  max_Bknots <- 0
   #Initialising the parallelisation
   if (nClusters > 1) {
     if (!requireNamespace("foreach", quietly = TRUE))
@@ -60,7 +64,7 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 20*ncol(model$x),
     doParallel::registerDoParallel(cl)
   }
   #Start of the main loop, incrementing sequentially partition and subdivision 
-  while(iter < max_iter) {
+  while(iter < max_iter && max_Bknots< 600) {
     message("####################### ITERATION ", iter, " ###########################")
     inactiveVar <- which(activeVar==FALSE)
     all_active <- eval(parse(text = paste("activeVar[", 1:D,"]", sep = "", collapse = "&&")))
@@ -97,12 +101,6 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 20*ncol(model$x),
     else {
       imax <- which(Criteria[2,] == 0)
     }
-    # if (!Change){
-    #   message("Couldn't improve the prediction over observations")
-    #   if (nClusters > 1)
-    #     parallel::stopCluster(cl)
-    #   return (list(model,history))
-    # }
     message("Criteria : ")
     print(Criteria)
     
@@ -110,12 +108,14 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 20*ncol(model$x),
       message("Kernel HyperParameters of the shape for each block (sigma, theta_1, theta2, ...)")
       print(model$kernParam$l)
     }
-    if (Criteria[1,imax]/(maxy)^2<tol){ #Checking if it is worth incrementing parameters 
+    if (Criteria[1,imax]/(maxy)^2<tolCriteria){ #Checking if it is worth incrementing parameters 
         message("Criteria can't be improved")
       if (nClusters > 1)
         parallel::stopCluster(cl)
       names(history) <- paste("Iter ", i:length(history), sep="") 
-      return(list(model, history, hist_Criteria, hist_diffnorm))
+      res <- list(model, history, hist_Criteria, hist_diffnorm)
+      names(res) <- c("model", "history", "hist_Criteria", "hist_diffnorm")
+      return(res)
     }
     model <- MaxModCriterionBAGP(model, GlobalconstrType, options_expand, activeVar, iter, imax, 
                                  Block_max_size, reward_new_dim, reward_new_knot, Estim_varnoise, new_criteria
@@ -126,8 +126,9 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 20*ncol(model$x),
     nblock <- model$localParam$nblocks
     diffnorm <- Criteria[2,imax]
     history[[iter]] <- options_expand[[imax]]
-    hist_Criteria <- Criteria[1,imax]
-    hist_diffnorm <- Criteria[2,imax]
+    hist_Criteria <- c(hist_Criteria, Criteria[1,imax])
+    hist_diffnorm <- c(hist_diffnorm, Criteria[2,imax])
+    max_Bknots <- max(sapply(subdivision, function(l) prod(sapply(l, function(x) length(x)))))
     if(imax<=D){
       if (!activeVar[imax]){
         message(paste("activation variable ", imax, sep=))
@@ -139,26 +140,34 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 20*ncol(model$x),
     else{
       print(paste("merging block", options_expand[[imax]][1], " and block",  options_expand[[imax]][2], sep = ""))
     }
-    message(paste("imax :", imax, "  Criteria = ", maximum , "  diff_norm = ",
-                diffnorm, sep = ""))
-    message("estimated varnoise")
-    print(model$varnoise)
+    message(paste("Criteria = ", maximum , "  diff_norm = ",
+                  diffnorm, sep = ""))
+    message(paste("estimated varnoise", model$varnoise))
+    message(paste("nknots", model$nknots))
     message("subdivision")
     print(subdivision)
-    if (diffnorm/(maxy^2) <tol){# Checking if the precision over the data is sufficient
+    if (diffnorm/(norm(model$y-mean(model$y))^2)<tolPrecision){# Checking if the precision over the data is sufficient
       message("precision reached")
       if (nClusters > 1)
         parallel::stopCluster(cl)
       names(history) <- paste("Iter ", i:length(history), sep="") 
-      return(list(model, history,hist_Criteria, hist_diffnorm))
+      res <- list(model, history, hist_Criteria, hist_diffnorm)
+      names(res) <- c("model", "history", "hist_Criteria", "hist_diffnorm")
+      return(res)
     }
     iter <- iter+1
   }
   if (nClusters > 1)
     parallel::stopCluster(cl)
-  message(paste("number of iteration maximal : " ,max_iter," reached", sep= ""))
+  if (iter==max_iter){
+    message(paste("number of iteration maximal : " ,max_iter," reached", sep= ""))
+  } else {
+    message(paste("number of knots per block reached : " , max_iter," reached", sep= ""))
+  }
   names(history) <- paste("Iter ", i:length(history), sep="") 
-  return(list(model, history,hist_Criteria, hist_diffnorm))
+  res <- list(model, history, hist_Criteria, hist_diffnorm)
+  names(res) <- c("model", "history", "hist_Criteria", "hist_diffnorm")
+  return(res)
 }
 
 
@@ -208,8 +217,9 @@ MaxModCriterionBAGP <- function(model, GlobalconstrType, options_expand, activeV
                            subdivision = list(list(c(0,1))))
     model_update <- optimise.parameters(model_update, model_update$varnoise, Estim_varnoise)
     Xi <- predict(model_update,0,0)$xi.mod
-    return(list(model_update,c(Xi[1]*Xi[2] + ((Xi[1]-Xi[2])**2)/3, 
-                               norm(predict(model_update, model$x)$y.mod-model$y)/nrow(model$x))))
+    criteria <- Xi[1]*Xi[2] + ((Xi[1]-Xi[2])**2)/3
+    diff_norm <- norm(predict(model_update, model$x)$y.mod-model$y)/(var(model$y)*nrow(model$x))
+    return(list(model_update, as.matrix(c(criteria, diff_norm))))
   } else { #The partition isn't empty
     if (option_name=="case1"){# Creating a new block with one variable or a adding a knot in an already active variable
       if (activeVar[option[1]]){# adding knot in an already active variable
@@ -416,12 +426,7 @@ construct_t <- function(t, model, choice, GlobalconstrType, new_criteria
   model1$varnoise <- model$varnoise
   model1$kernParam <- model$kernParam
   #+reward_new_knot*md
-  if (new_criteria){
-    return(-square_norm_int_2(model,model1))
-  }
-  else{
     return(-(square_norm_int(model,model1)))
-  }
 }
 
 

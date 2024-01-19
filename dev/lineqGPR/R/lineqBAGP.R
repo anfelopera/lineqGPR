@@ -487,6 +487,23 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   
   Gamma.block <- Gamma_var_to_tensor(model$Gamma.var)
   Gamma <- block_to_matrix(Gamma.block, "bdiag")
+  
+  
+  # if(subdivision_size[[1]]==4){
+  #   Gamma <- matrix (c(1,0.5,1e-8,1e-9,
+  #                      0.5,1,1e-7,1e-8,
+  #                      1e-8,1e-7,1,0.5,
+  #                      1e-9,1e-8,0.5,1
+  #                      ), nrow =4)
+  #   Gamma.block[[1]] <- Gamma
+  # }
+  # else if (subdivision_size[[1]]==3){
+  #   Gamma <- matrix(c(1,1e-8,1e-9,
+  #                     1e-8,1,0.5,
+  #                     1e-8,0.5,1
+  #   ))
+  #   Gamma.block[[1]] <- Gamma
+  # }
   #nugget.block <- lapply(1:nblocks, function(x) 1e-9*diag(block_tensor_size[x]))
   #Gamma.block <- block_compute(Gamma.block, "sum", nugget.block)
   
@@ -532,8 +549,9 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
     mid.term <- inv_tau*(diag(nobs)- t(Lschur)%*%Lschur)
     #message("computation with Cholesky ")
   } else {
-    mid.term <- chol2inv(chol(block_to_matrix(
-      block_compute(Phi.block, "prod", Gammat_Phi.block), "sum") + model$varnoise*In))
+    mid.term <- chol2inv(chol(
+      block_to_matrix(block_compute(Phi.block, "prod", Gammat_Phi.block), "sum")
+      + model$varnoise*In))
   #message("computation Classic")
   }
     

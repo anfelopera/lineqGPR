@@ -842,3 +842,71 @@ rename <- function(model){
   }
   return(model)
 }
+
+################################################ PLOT FUNCTIONS ################################################
+
+#' @title function
+#' @description rename the parameters of the model  
+#' 
+#' @param x list of history
+#' 
+#' @return The choices that we make for iterations
+#'
+#' @author M. Deronzier 
+#'
+#' @references F. Bachoc, A. F. Lopez-Lopera, and O. Roustant (2020),
+#' "Sequential construction and dimension reduction of Gaussian processes under inequality constraints".
+#' \emph{ArXiv e-prints}
+#' <arXiv:2009.04188>
+#'
+#' @export
+
+f <- function(x){
+  if (length(x)==1){
+    return(paste("(",x,")", sep=""))
+  }else{
+    return(paste("[", x[1], ", ", x[2],"]", sep=""))
+  }
+}
+
+#' @title Plot history
+#' @description Function that plot the evolution of the criteria over iterations   
+#' 
+#' @param res a list containing the model and the history of choices returned by MaxMod
+#' @param i an integer 
+#' 
+#' @return the model with the variables renamed
+#'
+#' @author M. Deronzier 
+#'
+#' @references F. Bachoc, A. F. Lopez-Lopera, and O. Roustant (2020),
+#' "Sequential construction and dimension reduction of Gaussian processes under inequality constraints".
+#' \emph{ArXiv e-prints}
+#' <arXiv:2009.04188>
+#'
+#' @export
+plot_history <- function(res, i){
+  history <- lapply(res$history, function(x) f(x))
+  n <- length(res$history)
+  iteration <- 1:(n-1)
+  model <- res$model
+  hist <- history[2:n]
+  histC <- res$hist_Criteria[2:n]
+  histR <- res$hist_diffnorm[2:n]
+  histCR <- histC/sqrt(histC)
+  choices <- res$history
+  df <- data.frame(iteration, histC,histR)
+  scaleFac <- max(histC)/max(histR)
+  
+  ggplot(df, aes(iteration, histC))+
+    geom_line(aes(y = histC), color = "red")+
+    geom_line(aes(y = histR*scaleFac), color = "blue")+
+    geom_label(aes(x = iteration, y = histC, label = hist))+
+    scale_y_continuous(name="L2 Square diff", sec.axis=sec_axis(~./scaleFac, name="R-square")) +
+    theme(
+      axis.title.y.left=element_text(color="red"),
+      axis.text.y.left=element_text(color="red"),
+      axis.title.y.right=element_text(color="blue"),
+      axis.text.y.right=element_text(color="blue"))+
+    ggtitle(paste("Evolution of criteria for function ",i, sep=""))
+}
