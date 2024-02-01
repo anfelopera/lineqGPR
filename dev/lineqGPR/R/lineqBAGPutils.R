@@ -129,7 +129,8 @@ Phi_var_to_tensor <- function(Phi.perVar){
     Phi.perBlock[[j]] <- matrix(0, nrow = nbdesign, prod(sapply(Phi.perVar[[j]], ncol)))
     for (i in 1:nbdesign){
       Phi.perBlock[[j]][i, ] <- eval(parse(text = paste("Phi.perVar[[j]][[", 1:dim_block[j],
-                                                        "]][", i, ", ]", sep = "", collapse = "%x%")))
+                                                        "]][", i, ", ]", sep = "", collapse =
+                                                          "%x%")))
     }
   }
   return(Phi.perBlock)
@@ -256,7 +257,8 @@ Gamma_var_to_tensor <- function(Gamma.perVar) {#, dim_block, J){
           attr(Gamma.perBlock[[j]], "gradient")[[i]] <- gradGammaTemp/params[1]^(dim_block[[j]]-1)
         }
       }
-      names(attr(Gamma.perBlock[[j]], "gradient")) <- c("sigma2", paste("theta", seq(dim_block[[j]]), sep = ""))
+      names(attr(Gamma.perBlock[[j]], "gradient")) <- c("sigma2", paste("theta",
+                                                        seq(dim_block[[j]]), sep = ""))
     }
     attr(Gamma.perBlock[[j]], "derivative") <- NULL
     attr(Gamma.perBlock[[j]], "par") <- params
@@ -294,7 +296,7 @@ block_compute <- function(A,
     }, transpose = {
       return(lapply(A, function(x) t(x)))
     }, chol = {
-      return (lapply(A, function(x) chol(x+1e-9*diag(ncol(x)))))#########################Potential instability issue Here
+      return (lapply(A, function(x) chol(x+1e-9*diag(ncol(x)))))
     }, chol2inv = {
       return (lapply(A, function(x) chol2inv(x)))#+1e-9*diag(ncol(x)))))
     }, inv = {
@@ -352,10 +354,10 @@ block_scalar <- function(A, B){
                                           sep = "", collapse = ","),
                                     ")", sep = "")))
   for (i in 2:length(A)){
-    scalar <- rbind(scalar, eval(parse(text = paste("cbind(",
-                                                    paste("A[[", i, "]]%*%B[[", 1:length(B), "]]",
-                                                          sep = "", collapse = ","),
-                                                    ")", sep = ""))))
+    scalar <- rbind(scalar, eval(parse(text = 
+                    paste("cbind(",paste("A[[", i, "]]%*%B[[", 1:length(B), "]]",
+                          sep = "", collapse = ","),")", sep = ""
+                    ))))
   }
   return(scalar)
 }
@@ -535,7 +537,8 @@ changement_basis_matrix <- function(partition1,partition2,subdivision1,subdivisi
   }
   
   # For each block in partition1, the block in which it is included in partition2
-  container <- sapply(partition1, function(X) which(sapply(partition2, function(x) inclusion(X, x))==TRUE))
+  container <- sapply(partition1, function(X) which(sapply(partition2, 
+                                                           function(x) inclusion(X, x))==TRUE))
   # Useful variables
   
   n1 <- length(partition1)
@@ -568,18 +571,22 @@ changement_basis_matrix <- function(partition1,partition2,subdivision1,subdivisi
   P <- vector("list", n1)
   for(j in 1:n1){
     if(container[j]==1){
-      P[[j]] <- rbind(P_block[[j]], matrix(0, ncol= block_size1[j], nrow=(sum(block_size2[2:n2]))))
+      P[[j]] <- rbind(P_block[[j]], matrix(0, ncol= block_size1[j], 
+                                           nrow=(sum(block_size2[2:n2]))))
     } else if (container[j]==n2){
-      P[[j]] <- rbind(matrix(0, ncol=block_size1[j], nrow=(sum(block_size2[1:(n2-1)]))), P_block[[j]])
+      P[[j]] <- rbind(matrix(0, ncol=block_size1[j], nrow=(sum(block_size2[1:(n2-1)]))),
+                      P_block[[j]])
     } else {
-      P[[j]] <- rbind(matrix(0, ncol=block_size1[j], nrow=(sum(block_size2[1:(container[j]-1)]))), P_block[[j]],
-                      matrix(0, ncol=block_size1[j], nrow=(sum(block_size2[(container[j]+1):n2]))))
+      P[[j]] <- rbind(matrix(0, ncol=block_size1[j], 
+                      nrow=(sum(block_size2[1:(container[j]-1)]))), P_block[[j]],
+                      matrix(0, ncol=block_size1[j], 
+                      nrow=(sum(block_size2[(container[j]+1):n2]))))
     }
   }
   return(block_to_matrix(P,"cbind"))
 }
 
-############################## Function to calculate the square norm criteria ##########################################
+##################### Function to calculate the square norm criteria #######################
 
 #' @title integral in the 1 dimension case
 #' @description gives the value of integral of  the hat basis functions constructed 
@@ -615,7 +622,8 @@ Mat_E <- function(subdivision){
   E <- vector("list", J)
   for (j in 1:J){
     E[[j]] <- eval(parse(text = 
-              paste("seq_int(subdivision[[",j,"]][[", 1:length(subdivision[[j]]),"]])", collapse = "%x%", sep = "")
+              paste("seq_int(subdivision[[",j,"]][[", 1:length(subdivision[[j]]),"]])",
+                    collapse = "%x%", sep = "")
     ))
   }
   return(E)
@@ -633,7 +641,8 @@ Mat_E <- function(subdivision){
 #' @author M. Deronzier 
 #'
 #' @references F. Bachoc, A. F. Lopez-Lopera, and O. Roustant (2020),
-#' "Sequential construction and dimension reduction of Gaussian processes under inequality constraints".
+#' "Sequential construction and dimension reduction of Gaussian processes under
+#'  inequality constraints".
 #' \emph{ArXiv e-prints}
 #' <arXiv:2009.04188>
 #'
@@ -660,7 +669,8 @@ sub_Gram <- function(subdivision,n=length(subdivision)){
 #' @author M. Deronzier 
 #'
 #' @references F. Bachoc, A. F. Lopez-Lopera, and O. Roustant (2020),
-#' "Sequential construction and dimension reduction of Gaussian processes under inequality constraints".
+#' "Sequential construction and dimension reduction of Gaussian processes under inequality
+#'  constraints".
 #' \emph{ArXiv e-prints}
 #' <arXiv:2009.04188>
 #'
@@ -690,7 +700,8 @@ Gram <- function(subdivision, J =length(subdivision)){
 #' @author M. Deronzier 
 #'
 #' @references F. Bachoc, A. F. Lopez-Lopera, and O. Roustant (2020),
-#' "Sequential construction and dimension reduction of Gaussian processes under inequality constraints".
+#' "Sequential construction and dimension reduction of Gaussian processes under inequality
+#'  constraints".
 #' \emph{ArXiv e-prints}
 #' <arXiv:2009.04188>
 #'
@@ -699,7 +710,8 @@ Gram <- function(subdivision, J =length(subdivision)){
 square_norm_int <- function(model1,model2){
   Gram_block <- Gram(model2$subdivision)
   E_block <- Mat_E(model2$subdivision)
-  mat <-changement_basis_matrix(model1$partition, model2$partition, model1$subdivision, model2$subdivision)
+  mat <-changement_basis_matrix(model1$partition, model2$partition, model1$subdivision,
+                                model2$subdivision)
   Xi <- matrix_to_block((mat%*%predict(model1,0)$xi.mod),
                         model2$subdivision, type="rbind")
   new.Xi <- matrix_to_block(predict(model2,0)$xi.mod, model2$subdivision, type = "rbind")
@@ -728,7 +740,8 @@ square_norm_int <- function(model1,model2){
 #' @author M. Deronzier 
 #'
 #' @references F. Bachoc, A. F. Lopez-Lopera, and O. Roustant (2020),
-#' "Sequential construction and dimension reduction of Gaussian processes under inequality constraints".
+#' "Sequential construction and dimension reduction of Gaussian processes under inequality
+#'  constraints".
 #' \emph{ArXiv e-prints}
 #' <arXiv:2009.04188>
 #'
@@ -737,7 +750,8 @@ square_norm_int <- function(model1,model2){
 square_norm_int_2 <- function(model1,model2, alpha=0.2){
   Gram_block <- Gram(model2$subdivision)
   E_block <- Mat_E(model2$subdivision)
-  mat <- changement_basis_matrix(model1$partition, model2$partition, model1$subdivision, model2$subdivision)
+  mat <- changement_basis_matrix(model1$partition, model2$partition, model1$subdivision,
+                                 model2$subdivision)
   Xi <- matrix_to_block((mat%*%predict(model1,0)$xi.mod), model2$subdivision, type="rbind")
   new.Xi <- matrix_to_block(predict(model2,0)$xi.mod, model2$subdivision, type = "rbind")
   eta <- block_compute(Xi,"sum", new.Xi,1,-1)
@@ -778,7 +792,8 @@ square_norm_int_2 <- function(model1,model2, alpha=0.2){
 #' @author M. Deronzier 
 #'
 #' @references F. Bachoc, A. F. Lopez-Lopera, and O. Roustant (2020),
-#' "Sequential construction and dimension reduction of Gaussian processes under inequality constraints".
+#' "Sequential construction and dimension reduction of Gaussian processes under inequality
+#'  constraints".
 #' \emph{ArXiv e-prints}
 #' <arXiv:2009.04188>
 #'
@@ -826,16 +841,19 @@ merge_block <- function(partition, subdivision, kernParam, n1, n2){
 #' @author M. Deronzier 
 #'
 #' @references F. Bachoc, A. F. Lopez-Lopera, and O. Roustant (2020),
-#' "Sequential construction and dimension reduction of Gaussian processes under inequality constraints".
+#' "Sequential construction and dimension reduction of Gaussian processes under inequality
+#'  constraints".
 #' \emph{ArXiv e-prints}
 #' <arXiv:2009.04188>
 #'
 #' @export
 
 rename <- function(model){
-  #names(model$subdivision) <- names(model$partition) <- paste("block", 1:length(model$partition), sep = "")
+  #names(model$subdivision) <- names(model$partition) <- paste("block", 1:length(model$partition),
+  #sep = "")
   for (j in 1:length(model$partition)) {
-    names(model$partition[[j]]) <- names(model$subdivision[[j]]) <- paste("var", model$partition[[j]], sep = "")
+    names(model$partition[[j]]) <- names(model$subdivision[[j]]) <- paste("var",
+                                         model$partition[[j]], sep = "")
     names(model$kernParam$par[[j]]) <- c(paste("sigma", j, sep = ""), 
                                          paste("var", model$partition[[j]], sep = ""))
     
@@ -843,7 +861,7 @@ rename <- function(model){
   return(model)
 }
 
-################################################ PLOT FUNCTIONS ################################################
+############################## PLOT FUNCTIONS ##########################################
 
 #' @title function
 #' @description rename the parameters of the model  
@@ -855,7 +873,8 @@ rename <- function(model){
 #' @author M. Deronzier 
 #'
 #' @references F. Bachoc, A. F. Lopez-Lopera, and O. Roustant (2020),
-#' "Sequential construction and dimension reduction of Gaussian processes under inequality constraints".
+#' "Sequential construction and dimension reduction of Gaussian processes under inequality 
+#' constraints".
 #' \emph{ArXiv e-prints}
 #' <arXiv:2009.04188>
 #'
@@ -873,40 +892,100 @@ f <- function(x){
 #' @description Function that plot the evolution of the criteria over iterations   
 #' 
 #' @param res a list containing the model and the history of choices returned by MaxMod
-#' @param i an integer 
 #' 
 #' @return the model with the variables renamed
 #'
 #' @author M. Deronzier 
 #'
 #' @references F. Bachoc, A. F. Lopez-Lopera, and O. Roustant (2020),
-#' "Sequential construction and dimension reduction of Gaussian processes under inequality constraints".
+#' "Sequential construction and dimension reduction of Gaussian processes under inequality 
+#' constraints".
 #' \emph{ArXiv e-prints}
 #' <arXiv:2009.04188>
 #'
 #' @export
-plot_history <- function(res, i){
+plot_history <- function(res){
+  res
   history <- lapply(res$history, function(x) f(x))
   n <- length(res$history)
-  iteration <- 1:(n-1)
+  iteration <- 1:n
   model <- res$model
-  hist <- history[2:n]
-  histC <- res$hist_Criteria[2:n]
-  histR <- res$hist_diffnorm[2:n]
-  histCR <- histC/sqrt(histC)
-  choices <- res$history
-  df <- data.frame(iteration, histC,histR)
-  scaleFac <- max(histC)/max(histR)
+  hist <- history[1:n]
+  histC <- sqrt(res$hist_Criteria[1:n])
+  histR <- sqrt(res$hist_diffnorm[1:n])
   
-  ggplot(df, aes(iteration, histC))+
-    geom_line(aes(y = histC), color = "red")+
-    geom_line(aes(y = histR*scaleFac), color = "blue")+
-    geom_label(aes(x = iteration, y = histC, label = hist))+
-    scale_y_continuous(name="L2 Square diff", sec.axis=sec_axis(~./scaleFac, name="R-square")) +
-    theme(
-      axis.title.y.left=element_text(color="red"),
-      axis.text.y.left=element_text(color="red"),
-      axis.title.y.right=element_text(color="blue"),
-      axis.text.y.right=element_text(color="blue"))+
-    ggtitle(paste("Evolution of criteria for function ",i, sep=""))
+  choices <- res$history
+  df <- data.frame(iter=iteration, L2Criteria = histC, RMSE=histR)
+  data_long <- melt(df, id = "iter") 
+  
+  ggplot()+
+    geom_line(data = data_long, aes(x = iter, y= value, color = variable))+
+    scale_y_continuous(trans = log10_trans(),
+                       breaks = trans_breaks("log10", function(x) 10^x),
+                       labels = trans_format("log10", math_format(10^.x)))+
+    geom_label(data = df, aes(x = iteration, y = histC, label = hist))
+  
 }
+
+######################## SECTION to plot multidimensional functions per blocks #######################
+#' @title 
+#' @description get the functions from the models   
+#' 
+#' @param model a list containing the model and the history of choices returned by MaxMod
+#' 
+#' @return a list of functions per block
+#'
+#' @author M. Deronzier 
+#'
+#' @export
+block_fun <- function(model){
+  B <- length(model$partition)
+  predict(model, 0)$xi.mode
+  xi_block <- matrix_to_block(predict(model,0)$xi.mod, model$subdivision, type = "rbind")
+  E_block <- Mat_E(model$subdivision)
+  xi_centered<- lapply(1:B, function(x) xi_block[[x]]-sum(xi_block[[x]]*as.matrix(E_block[[x]])))
+  return(xi_centered)
+}
+
+#' @title 
+#' @description get the functions from the models   
+#' 
+#' @param model a list containing the model and the history of choices returned by MaxMod
+#' @param xi_centered a list containing the model and the history of choices returned by MaxMod
+#' @param x a list containing the model and the history of choices returned by MaxMod
+#' 
+#' @return a list of functions per block
+#'
+#' @author M. Deronzier 
+#'
+#' @export
+Compute_fun <- function(model,xi_centered,x){
+  return(block_compute(Block_Phi(model$subdivision, model$partition, x), "prod", xi_centered))
+}
+
+#' @title 
+#' @description get the functions from the models   
+#' 
+#' @param partition1 a partition 
+#' @param partition2 a partition
+#' 
+#' @return a boolean indicating if the partitions are equal or not
+#'
+#' @author M. Deronzier 
+#'
+#' @export
+check_partition <- function(partition1,partition2){
+  for (i in 1:length(partition1)){
+    A <- FALSE
+    for (j in 1:length(partition2)){
+      if (setequal(partition1[[i]], partition2[[j]])){
+        A <- TRUE
+      }
+    }
+    if (!A){
+      return(FALSE)
+    }
+  }
+  return(TRUE)
+}
+

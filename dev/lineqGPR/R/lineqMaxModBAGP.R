@@ -29,7 +29,7 @@
 #' @export
 BAGPMaxMod <- function(model, xtest=0,  max_iter = 20*ncol(model$x),
                        reward_new_knot = 5e-6, reward_new_dim = 5e-5,
-                       nClusters = 5, tolCriteria = 1e-7, tolPrecision =1e-8, 
+                       nClusters = 5, tolCriteria = 1e-6, tolPrecision =1e-6, 
                        GlobalconstrType, Block_max_size = 5,
                        print_iter = FALSE, print_param = FALSE, 
                        save_history = TRUE, epsilon= 1e-3,
@@ -64,7 +64,7 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 20*ncol(model$x),
     doParallel::registerDoParallel(cl)
   }
   #Start of the main loop, incrementing sequentially partition and subdivision 
-  while(iter < max_iter && max_Bknots< 600) {
+  while(iter < max_iter && max_Bknots< 300) {
     message("####################### ITERATION ", iter, " ###########################")
     inactiveVar <- which(activeVar==FALSE)
     all_active <- eval(parse(text = paste("activeVar[", 1:D,"]", sep = "", collapse = "&&")))
@@ -93,13 +93,14 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 20*ncol(model$x),
                               new_criteria)[[2]]
         }))
     }
-    if(min(Criteria[2,])>0){
-      Criteria <- rbind(Criteria, Criteria[1,]/sqrt(Criteria[2,]))
+    if(min(abs(Criteria[2,]))>0){
+      Criteria <- rbind(Criteria, Criteria[1,]/sqrt(abs(Criteria[2,])))
       maximum <- max(Criteria[3,])
       imax <- which(Criteria[3,] == maximum)
     }
     else {
       imax <- which(Criteria[2,] == 0)
+      
     }
     message("Criteria : ")
     print(Criteria)
@@ -112,7 +113,7 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 20*ncol(model$x),
         message("Criteria can't be improved")
       if (nClusters > 1)
         parallel::stopCluster(cl)
-      names(history) <- paste("Iter ", i:length(history), sep="") 
+      names(history) <- paste("Iter ", 1:length(history), sep="") 
       res <- list(model, history, hist_Criteria, hist_diffnorm)
       names(res) <- c("model", "history", "hist_Criteria", "hist_diffnorm")
       return(res)
@@ -162,7 +163,7 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 20*ncol(model$x),
   if (iter==max_iter){
     message(paste("number of iteration maximal : " ,max_iter," reached", sep= ""))
   } else {
-    message(paste("number of knots per block reached : " , max_iter," reached", sep= ""))
+    message(paste("number of knots per block reached : " , 300 ," reached", sep= ""))
   }
   names(history) <- paste("Iter ", i:length(history), sep="") 
   res <- list(model, history, hist_Criteria, hist_diffnorm)
@@ -349,15 +350,15 @@ optimise.parameters <- function(model, varnoise, Estim_varnoise) {
                              additive = TRUE, # if the model is additive
                               block = TRUE, # if the model is additive per blocks
                               estim.varnoise = TRUE, # to add this info at the MaxMod level
-                              bounds.varnoise = c(1e-7, varnoise+0.1), # to add this info at the MaxMod level
+                              bounds.varnoise = c(1e-6, varnoise+0.5), # to add this info at the MaxMod level
                               lb = rep(1e-2, new.model$d+new.model$localParam$nblocks),
                               #ub = c(Inf, 0.7, 0.7, Inf, 0.7), # to add this info at the MaxMod level
                               ub = rep(Inf, new.model$d+new.model$localParam$nblocks),
-                              opts = list(#algorithm = "NLOPT_LD_MMA",
-                                          algorithm = "NLOPT_LN_COBYLA",
+                              opts = list(algorithm = "NLOPT_LD_MMA",
+                                          #algorithm = "NLOPT_LN_COBYLA",
                                           print_level = 0,
                                           ftol_abs = 1e-3,
-                                          maxeval = 30,
+                                          maxeval = 40,
                                           check_derivatives = FALSE)
                               )
   }
@@ -366,7 +367,7 @@ optimise.parameters <- function(model, varnoise, Estim_varnoise) {
                               additive = TRUE, # if the model is additive
                               block = TRUE, # if the model is additive per blocks
                               estim.varnoise = FALSE, # to add this info at the MaxMod level
-                              bounds.varnoise = c(1e-9, varnoise+0.1), # to add this info at the MaxMod level
+                              bounds.varnoise = c(1e-9, varnoise+0.5), # to add this info at the MaxMod level
                               lb = rep(1e-2, new.model$d+new.model$localParam$nblocks),
                               #ub = c(Inf, 0.7, 0.7, Inf, 0.7), # to add this info at the MaxMod level
                               ub = rep(Inf, new.model$d+new.model$localParam$nblocks),
@@ -415,9 +416,10 @@ construct_t <- function(t, model, choice, GlobalconstrType, new_criteria
   subdivision1 <- model$subdivision
   pos <- bijection(model$partition, choice[1])
   subdivision1[[pos[1]]][[pos[2]]] <- sort(c(model$subdivision[[pos[1]]][[pos[2]]],t))
-  md <- min(dist(subdivision1[[pos[1]]][[pos[2]]]))
-  if( md < 1e-2 ){ #Test for stability inversion
-    return(1)
+  md1 <- min(dist(subdivision1[[pos[1]]][[pos[2]]]))
+  md <- min(dist(model$subdivision[[pos[1]]][[pos[2]]]))
+  if( md1 < 5e-2 ){ #Test for stability inversion
+    return(10)
   } 
   model1 <- create(class = "lineqBAGP", x = model$x, y = model$y,
                    constrType = GlobalconstrType, 
@@ -426,7 +428,7 @@ construct_t <- function(t, model, choice, GlobalconstrType, new_criteria
   model1$varnoise <- model$varnoise
   model1$kernParam <- model$kernParam
   #+reward_new_knot*md
-    return(-(square_norm_int(model,model1)))
+    return(-(square_norm_int(model,model1)))#*log(1+100000*(md1/md))/log(50001)))
 }
 
 
