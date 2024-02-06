@@ -6,7 +6,8 @@
 #' @param constrType A character string corresponding to the type of the inequality constraint.
 #' @param partition A list containing the partion of set \eqn{\{1, \cdots, D\}}.
 #' @param subdivision A list containing sequences of subdivision of segment $[0,1]$.
-#' @param subdivision_size A list containing the sizes of the sequences of subdivision of segment $[0,1]$.
+#' @param subdivision_size A list containing the sizes of the sequences of subdivision of segment
+#'  $[0,1]$.
 # #' @param subdivision A list[list[seq]] The subdivisions for each axe subdivision[[j]][[k]]
 # #' @param subdivision_taille A list[seq] subdivision_size[[j]][k] =length(subdivision[[j]][[k]])
 # #' @param dim_block :seq, the size of the blocks, dim_block[j]=length(partition[[j]])
@@ -19,7 +20,8 @@
 # #' @param d a number corresponding to the dimension of the input space.
 # #' 
 # #' Options: "boundedness", "monotonicity", "convexity", "linear"
-# #' Multiple constraints can be also defined, e.g. \code{constrType = c("boundedness", "monotonicity")}
+# #' Multiple constraints can be also defined, e.g. \code{constrType = c("boundedness",
+# #' "monotonicity")}
 #' 
 #' @return A list with the following elements.
 #' \item{x,y,constrType}{see \bold{Arguments}}
@@ -31,12 +33,14 @@
 #' \item{localParam}{a list with specific parameters required for \code{"lineqBAGP"} models:
 #' \code{m} (number of basis functions), \code{sampler}, and \code{samplingParams}.
 #' See \code{\link{simulate.lineqBAGP}}}
-#' \item{kernParam}{a list with the kernel parameters: \code{par} (kernel parameters), \code{type}, \code{nugget}.
+#' \item{kernParam}{a list with the kernel parameters: \code{par} (kernel parameters), \code{type},
+#'  \code{nugget}.
 #' See \code{\link{kernCompute}}}
 #' \item{bounds}{the limit values if \code{constrType = "boundedness"}.}
 #' \item{(Lambda,lb,ub)}{the linear system of inequalities if \code{constrType = "linear"}}
 #'
-#' @seealso \code{\link{augment.lineqBAGP}}, \code{\link{predict.lineqBAGP}}, \code{\link{simulate.lineqBAGP}}
+#' @seealso \code{\link{augment.lineqBAGP}}, \code{\link{predict.lineqBAGP}},
+#'  \code{\link{simulate.lineqBAGP}}
 #' 
 #' @author M. Deronzier and A. F. Lopez-Lopera
 #' 
@@ -98,12 +102,14 @@ create.lineqBAGP <- function(x, y, constrType,
     subdivision_size <- lapply(subdivision, function(j) sapply(j, function(k) length(k)))
   } else {
     if (!is.null(subdivision_size)) {
-      subdivision <- lapply(subdivision_size, function(j) lapply(j, function(k) seq(0, 1, length = k)))
+      subdivision <- lapply(subdivision_size, function(j) lapply(j, function(k) 
+        seq(0, 1, length = k)))
     } else {
       warning("Either 'subdivision' or 'subdivision_size' must be non null.")
     }
   }
-  names(subdivision) <- names(subdivision_size) <- names(partition) <- paste("block", 1:nblocks, sep = "")
+  names(subdivision) <- names(subdivision_size) <- 
+    names(partition) <- paste("block", 1:nblocks, sep = "")
   
   #Creation of the subdivision_size from m, type: list[seq]
   
@@ -133,7 +139,7 @@ create.lineqBAGP <- function(x, y, constrType,
   
   
   for (j in 1:nblocks) { # to be checked later! We will focus on the monotonicity constraint
-    kernParam$par[[j]] <- c(sigma2 = 1^2, theta = rep(0.1, dim_block[j]))
+    kernParam$par[[j]] <- c(sigma2 = 1^2, theta = rep(0.5, dim_block[j]))
     
     nvar <- length(partition[[j]])
     constrParam[[j]] <- vector("list", nvar) 
@@ -172,7 +178,7 @@ create.lineqBAGP <- function(x, y, constrType,
   constrIdx <- lapply(constrFlag,  function(x) which(x == 1))
   
   model <- list(x = x, y = y, constrType = constrTypePartition,  subdivision = subdivision,
-                partition = partition, d = d,  nugget = 1e-6, nblock = nblocks,
+                partition = partition, d = d,  nugget = 1e-7, nblock = nblocks,
                 constrIdx = constrIdx, 
                 constrParam = constrParam, nknots = nknots,
                 varnoise = min(0.05*sd(y)^2, 1),
@@ -202,7 +208,8 @@ create.lineqBAGP <- function(x, y, constrType,
 #' vector with covariance \eqn{\boldsymbol{\Gamma}}{\Gamma}, s.t.
 #' \eqn{\boldsymbol{\Phi} \boldsymbol{\xi} = \boldsymbol{y}}{\Phi \xi = y}
 #' (interpolation constraints) and
-#' \eqn{\boldsymbol{l} \leq \boldsymbol{\Lambda} \boldsymbol{\xi} \leq \boldsymbol{u}}{lb \le \Lambda \xi \le ub}
+#' \eqn{\boldsymbol{l} \leq \boldsymbol{\Lambda} \boldsymbol{\xi} \leq \boldsymbol{u}}
+#' {lb \le \Lambda \xi \le ub}
 #' (inequality constraints).
 #' 
 #' @seealso \code{\link{create.lineqBAGP}}, \code{\link{predict.lineqBAGP}},
@@ -274,7 +281,7 @@ augment.lineqBAGP <- function(x, ...) {
   m.block <- rep(0, nblocks)
   names(M.block) <- names(g.block) <- names(m.block) <- paste("block", 1:nblocks, sep = "")
   for (j in 1:nblocks) {
-    if (length(model$constrType[[j]]) == 1 && model$constrType[[j]] == "linear") { # to be checked!
+    if (length(model$constrType[[j]]) == 1 && model$constrType[[j]] == "linear") {
       if (!("Lambda" %in% names(constrParam[[j]])))
         stop('matrix Lambda is not defined')
       Lambda <- model$constrParam[[j]]$Lambda
@@ -294,8 +301,10 @@ augment.lineqBAGP <- function(x, ...) {
       #                    constrIdx = model$constrIdx[[k]], lineqSysType = "oneside")
       
       temp <- sapply(1:nvar,
-                     function(k) lineqGPSys(subdivision_size[[j]][k], model$constrType[[j]][k], bounds[k,1], bounds[k,2],
-                                            constrIdx = model$constrIdx[[j]][k], lineqSysType = "twosides", rmInf = FALSE))
+                     function(k) lineqGPSys(subdivision_size[[j]][k], model$constrType[[j]][k], 
+                                            bounds[k,1], bounds[k,2],
+                                            constrIdx = model$constrIdx[[j]][k], 
+                                            lineqSysType = "twosides", rmInf = FALSE))
       
       Abase <- temp[1, ]
       lbase <- temp[2, ]
@@ -326,11 +335,13 @@ augment.lineqBAGP <- function(x, ...) {
       
       
       # lsys <- lapply(1:nvar, function(k)
-      #                  lineqGPSys(subdivision_size[[j]][k], model$constrType[[j]][k], bounds[k,1], bounds[k,2],
+      #                  lineqGPSys(subdivision_size[[j]][k], model$constrType[[j]][k], 
+      #                 bounds[k,1], bounds[k,2],
       #                             constrIdx = model$constrIdx[[j]][k], lineqSysType = "oneside"))
       # lsys2 <-  lapply(1:nvar, 
-      #                  function(k) lineqGPSys(subdivision_size[[j]][k], model$constrType[[j]][k], bounds[k,1], bounds[k,2],
-      #                                                 constrIdx = model$constrIdx[[j]][k], rmInf = FALSE))
+      #                  function(k) lineqGPSys(subdivision_size[[j]][k], model$constrType[[j]][k],
+      #                 bounds[k,1], bounds[k,2],
+      #                 constrIdx = model$constrIdx[[j]][k], rmInf = FALSE))
       
       
       model$constrParam[[j]]$Lambda <- lsys2$A
@@ -352,13 +363,15 @@ augment.lineqBAGP <- function(x, ...) {
   model$localParam$m.block <- m.block # for HMC sampler
   
   model$lineqSys$M <- eval(parse(text = paste("bdiag(",
-                                              paste("M.block[[", 1:nblocks, "]]", sep = "", collapse = ","),
+                                              paste("M.block[[", 1:nblocks, "]]", sep = "",
+                                                    collapse = ","),
                                               ")", sep = "")))
   model$lineqSys$M <- matrix(model$lineqSys$M, ncol = nknots)
   model$lineqSys$g <- matrix(unlist(model$lineqSys$g.block), ncol = 1)
   
   model$lineqSys$Lambda <- eval(parse(text = paste("bdiag(",
-                                                   paste("model$constrParam[[", 1:nblocks, "]]$Lambda",
+                                                   paste("model$constrParam[[", 1:nblocks, 
+                                                         "]]$Lambda",
                                                          sep = "", collapse = ","),
                                                    ")", sep = "")))
   model$lineqSys$Lambda <- matrix(model$lineqSys$Lambda, ncol = nknots)
@@ -379,7 +392,8 @@ augment.lineqBAGP <- function(x, ...) {
 #' 
 #' @param object an object with class \code{"lineqBAGP"}.
 #' @param xtest a vector (or matrix) with the test input design
-#' @param return_model If \code{TRUE}, the augmented model is returned (see \code{\link{augment.lineqBAGP}}).
+#' @param return_model If \code{TRUE}, the augmented model is returned (see 
+#' \code{\link{augment.lineqBAGP}}).
 #' @param ... further arguments passed to or from other methods
 #' 
 #' @return A \code{"lineqBAGP"} object with the following elements.
@@ -406,7 +420,8 @@ augment.lineqBAGP <- function(x, ...) {
 #' vector with covariance \eqn{\boldsymbol{\Gamma}}{\Gamma}, s.t.
 #' \eqn{\boldsymbol{\Phi} \boldsymbol{\xi} = \boldsymbol{y}}{\Phi \xi = y}
 #' (interpolation constraints) and
-#' \eqn{\boldsymbol{l} \leq \boldsymbol{\Lambda} \boldsymbol{\xi} \leq \boldsymbol{u}}{lb \le \Lambda \xi \le ub}
+#' \eqn{\boldsymbol{l} \leq \boldsymbol{\Lambda} \boldsymbol{\xi} \leq \boldsymbol{u}}
+#' {lb \le \Lambda \xi \le ub}
 #' (inequality constraints).
 #' 
 #' @seealso \code{\link{create.lineqBAGP}}, \code{\link{augment.lineqBAGP}},
@@ -464,6 +479,7 @@ augment.lineqBAGP <- function(x, ...) {
 #' @export
 predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   model <- augment(object)
+  predtime <- proc.time()
   if (!is.matrix(xtest))
     xtest <- matrix(xtest, ncol = model$d)
   
@@ -473,7 +489,7 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   subdivision_size <- model$localParam$subdivision_size
   block_tensor_size <- sapply(subdivision_size, prod)
   partition <- model$partition
-  inv_tau <- 1/model$varnoise
+  inv_tau <- 1/(model$varnoise)
   
   nobs <- length(model$y) # nb of training points 
   nknots <- model$localParam$nknots # total nb of knots
@@ -487,10 +503,27 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   
   Gamma.block <- Gamma_var_to_tensor(model$Gamma.var)
   Gamma <- block_to_matrix(Gamma.block, "bdiag")
+  
+  
+  # if(subdivision_size[[1]][[1]]==4){
+  #   Gamma <- matrix (c(1,0.5,1e-8,1e-9,
+  #                      0.5,1,1e-7,1e-8,
+  #                      1e-8,1e-7,1,0.5,
+  #                      1e-9,1e-8,0.5,1
+  #                      ), nrow =4)
+  #   Gamma.block[[1]] <- Gamma
+  # }
+  # else if (subdivision_size[[1]][[1]]==3){
+  #   Gamma <- matrix(c(1,1e-8,1e-9,
+  #                     1e-8,1,0.5,
+  #                     1e-9,0.5,1
+  #   ), nrow=3)
+  #   Gamma.block[[1]] <- Gamma
+  # }
   #nugget.block <- lapply(1:nblocks, function(x) 1e-9*diag(block_tensor_size[x]))
   #Gamma.block <- block_compute(Gamma.block, "sum", nugget.block)
   
-  Phi.block <- Phi_var_to_tensor(model$Phi.var)
+  model$Phi.block <- Phi.block <- Phi_var_to_tensor(model$Phi.var)
   Phi <- block_to_matrix(Phi.block, "cbind")
   t_Phi.block <- block_compute(Phi.block, "transpose")
   t_Phi <- block_to_matrix(t_Phi.block, "rbind")
@@ -524,7 +557,7 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
     #   block_compute(Phi.block, "prod", Gammat_Phi.block)
     #   , "sum") + model$varnoise*In))
   # }
-  if (nknots<nobs){
+  if (nknots<2*nobs){
     cholGammat_Phi <- as.matrix(block_to_matrix(cholGamma.block, "bdiag")%*%t_Phi)
     A <- cholGammat_Phi%*%t(cholGammat_Phi) + model$varnoise*diag(nknots)
     cholA <- chol(A)
@@ -532,8 +565,9 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
     mid.term <- inv_tau*(diag(nobs)- t(Lschur)%*%Lschur)
     #message("computation with Cholesky ")
   } else {
-    mid.term <- chol2inv(chol(block_to_matrix(
-      block_compute(Phi.block, "prod", Gammat_Phi.block), "sum") + model$varnoise*In))
+    mid.term <- chol2inv(chol(
+      block_to_matrix(block_compute(Phi.block, "prod", Gammat_Phi.block), "sum")
+      + model$varnoise*In))
   #message("computation Classic")
   }
     
@@ -542,10 +576,10 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   #                                                        + inv_tau*t_PhiPhi)) %*% t_Phi)
   # # message("computation of mu using Woodbury formula")
   # }
-  Gammat_Phimid.term <- Gammat_Phi %*% mid.term
-  xi.mean <- Gammat_Phimid.term %*% model$y
+  Gammat_Phimid.term <- Gammat_Phi%*%mid.term
+  xi.mean <- Gammat_Phimid.term%*%model$y
   pred$xi.mean <- xi.mean
-  pred$Sigma <- Gamma - Gammat_Phimid.term %*% t(Gammat_Phi)
+  pred$Sigma <- Gamma - Gammat_Phimid.term%*%t(Gammat_Phi)
   
   # pred$Sigma <- chol2inv(chol(invSigma))
   if (sum(unlist(model$constrType)!="none")>0){
@@ -557,6 +591,7 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   
   pred$y.mean <- pred$Phi.test%*%pred$xi.mean
   pred$y.mode <- pred$Phi.test%*%pred$xi.mode
+  pred$predtime <- proc.time() - predtime
   
   if (return_model)
     pred$model <- model
@@ -587,7 +622,8 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
 #' vector with covariance \eqn{\boldsymbol{\Gamma}}{\Gamma}, s.t.
 #' \eqn{\boldsymbol{\Phi} \boldsymbol{\xi} = \boldsymbol{y}}{\Phi \xi = y}
 #' (interpolation constraints) and
-#' \eqn{\boldsymbol{l} \leq \boldsymbol{\Lambda} \boldsymbol{\xi} \leq \boldsymbol{u}}{lb \le \Lambda \xi \le ub}
+#' \eqn{\boldsymbol{l} \leq \boldsymbol{\Lambda} \boldsymbol{\xi} \leq \boldsymbol{u}}
+#' {lb \le \Lambda \xi \le ub}
 #' (inequality constraints).
 #' 
 #' @seealso \code{\link{create.lineqBAGP}}, \code{\link{augment.lineqBAGP}},
@@ -638,7 +674,8 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
 #' var_design <- mean((ytest- mean(ytest))^2)
 #' message("Unconstrained GP mean: ", 1 - mean((ytest- model.sim$y.mean)^2)/var_design)
 #' message("Constrained GP mode: ", 1 - mean((ytest- model.sim$y.mode)^2)/var_design)
-#' message("Constrained GP mean via MCMC: ", 1 - mean((ytest- rowMeans(model.sim$y.sim))^2)/var_design)
+#' message("Constrained GP mean via MCMC: ", 1 - mean((ytest- rowMeans(model.sim$y.sim))^2)
+#' /var_design)
 #'
 #' @importFrom stats simulate
 #' @import plot3D

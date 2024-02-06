@@ -43,7 +43,8 @@ dim_block <- sapply(partition, function(x) length(x))
 m <- c(10,5,20)
 subdivision <- vector("list", nblock)
 for (j in 1:nblocks)
-  subdivision[[j]] <- lapply(1:dim_block[j],function(k) matrix(seq(0, 1, by = 1/(m[partition[[j]][k]]-1)), ncol = 1))
+  subdivision[[j]] <- lapply(1:dim_block[j],function(k) matrix(seq(0, 1, by = 1/(m[partition[[j]][k]]-1)),
+                                                               ncol = 1))
 subdivision2 <- subdivision
 subdivision2[[1]][[2]]<-sort(c(subdivision2[[1]][[2]], 0.333))
 
@@ -57,8 +58,8 @@ model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
 
 new.model <- BAGPMaxMod(model, max_iter = 10*ncol(model$x),
                         reward_new_knot = 1e-4, reward_new_dim = 1e-9,
-                        print_iter = FALSE, nClusters = 1,
-                        GlobalconstrType= rep("none",3)
+                        print_iter = FALSE, nClusters = 5,
+                        GlobalconstrType= rep("none",3), Block_max_size =2, tolCriteria = 5e-8
                         )
 
 # new.model <- BAGPMaxMod(model, max_iter = 7*ncol(model$x),
@@ -67,29 +68,30 @@ new.model <- BAGPMaxMod(model, max_iter = 10*ncol(model$x),
 #                         save_history = FALSE, constrType="none"
 # )[[1]]
 
-#model <- new.model
+model <- new.model[[1]]
 # modifying the covariance parameters of each block
-for (k in 1:nblocks)
-  model$kernParam$par[[k]] <- c(1, rep(0.5, model$localParam$dim_block[k]))
-
+# for (k in 1:nblocks){
+#   model$kernParam$par[[k]] <- c(1, rep(0.5, model$localParam$dim_block[k]))
+# }
+# 
 
 model$localParam$sampler <- "HMC"
-model$nugget <- 1e-5
-model <- lineqGPOptim(model,
-                      additive = TRUE, # if the model is additive
-                      block = TRUE, # if the model is additive per blocks
-                      estim.varnoise = FALSE, # to add this info at the MaxMod level
-                      bounds.varnoise = c(1e-7, Inf), # to add this info at the MaxMod level
-                      lb = rep(1e-2, model$d+model$localParam$nblocks),
-                      ub = c(Inf, 0.7, 0.7, Inf, 0.7), # to add this info at the MaxMod level
-                      # ub = rep(Inf, model$d+model$localParam$nblocks),
-                      opts = list(algorithm = "NLOPT_LD_MMA",
-                      #algorithm = "NLOPT_LN_COBYLA",
-                      print_level = 3,
-                      ftol_abs = 1e-3,
-                      maxeval = 50,
-                      check_derivatives = TRUE)
-)
+model$nugget <- 1e-7
+# model <- lineqGPOptim(model,
+#                       additive = TRUE, # if the model is additive
+#                       block = TRUE, # if the model is additive per blocks
+#                       estim.varnoise = FALSE, # to add this info at the MaxMod level
+#                       bounds.varnoise = c(1e-7, Inf), # to add this info at the MaxMod level
+#                       lb = rep(1e-2, model$d+model$localParam$nblocks),
+#                       ub = c(Inf, 0.7, 0.7, Inf, 0.7), # to add this info at the MaxMod level
+#                       # ub = rep(Inf, model$d+model$localParam$nblocks),
+#                       opts = list(algorithm = "NLOPT_LD_MMA",
+#                       #algorithm = "NLOPT_LN_COBYLA",
+#                       print_level = 3,
+#                       ftol_abs = 1e-3,
+#                       maxeval = 50,
+#                       check_derivatives = TRUE)
+# )
 
 model.sim <- simulate(model, nsim = 1e3, seed = 0, xtest = xtest)
 

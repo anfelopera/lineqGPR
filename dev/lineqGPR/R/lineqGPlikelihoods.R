@@ -839,8 +839,9 @@ logLikBlockAdditiveFun <- function(par = unlist(purrr::map(model$kernParam, "par
   t_Phi.block <- block_compute(Phi.block, "transpose")
   
   #Computation of the inverse of the mid term in the most efficient way
+  
   In <- diag(nobs)  
-  if (nobs <= 2*nknots) {
+  if (3*nobs <= nknots) {
     Gammat_Phi.block <- block_compute(Gamma.block, "prod",  t_Phi.block)
     Phi_Gammat_Phi.block <- block_compute(Phi.block, "prod", Gammat_Phi.block)
     Kyy <- block_to_matrix(Phi_Gammat_Phi.block, "sum") + varnoise*In
@@ -859,10 +860,19 @@ logLikBlockAdditiveFun <- function(par = unlist(purrr::map(model$kernParam, "par
     t_Phi <- block_to_matrix(t_Phi.block, "rbind")
     t_PhiPhi <- t_Phi%*%Phi
     
+    # cholGammat_Phi <- as.matrix(block_to_matrix(cholGamma.block, "bdiag")%*%t_Phi)
+    # A <- cholGammat_Phi%*%t(cholGammat_Phi) + varnoise*diag(nknots)
+    # cholA <- chol(A)
+    # Lschur <- forwardsolve(t(cholA), cholGammat_Phi)
+    # mid.term <- invVarnoise*(diag(nobs)- t(Lschur)%*%Lschur)
+     
     mid.term <- as.matrix(block_to_matrix(invGamma.block) + invVarnoise*t_PhiPhi)
     invKyy <- invVarnoise*(In - invVarnoise*Phi %*% chol2inv(chol(mid.term)) %*% t_Phi)
     detKyy <- varnoise^nobs * prod(detGamma.block) * det(mid.term)
     f <- 0.5*(log(detKyy) + nobs*log(2*pi) + t(model$y)%*%invKyy%*%model$y)
+    
+    ######################################################################################
+    
   }
   
   return(f)
