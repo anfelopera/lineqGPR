@@ -139,7 +139,7 @@ create.lineqBAGP <- function(x, y, constrType,
   
   
   for (j in 1:nblocks) { # to be checked later! We will focus on the monotonicity constraint
-    kernParam$par[[j]] <- c(sigma2 = 1^2, theta = rep(0.1, dim_block[j]))
+    kernParam$par[[j]] <- c(sigma2 = 1^2, theta = rep(0.5, dim_block[j]))
     
     nvar <- length(partition[[j]])
     constrParam[[j]] <- vector("list", nvar) 
@@ -479,6 +479,7 @@ augment.lineqBAGP <- function(x, ...) {
 #' @export
 predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   model <- augment(object)
+  predtime <- proc.time()
   if (!is.matrix(xtest))
     xtest <- matrix(xtest, ncol = model$d)
   
@@ -590,6 +591,7 @@ predict.lineqBAGP <- function(object, xtest, return_model = FALSE, ...) {
   
   pred$y.mean <- pred$Phi.test%*%pred$xi.mean
   pred$y.mode <- pred$Phi.test%*%pred$xi.mode
+  pred$predtime <- proc.time() - predtime
   
   if (return_model)
     pred$model <- model

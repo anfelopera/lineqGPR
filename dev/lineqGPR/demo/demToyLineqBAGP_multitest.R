@@ -37,14 +37,15 @@ fun6 <- function(x) {
 #Construction of the models
 
 n <- c(4,3,4,4,11, 6) #corresponding dim of our function
-multiplier <- c(13, 5, 4, 13, 12, 8) #number of observations per dimension
+multiplier <- c(5, 5, 4, 12, 12, 3) #number of observations per dimension
 sizes <- n*multiplier
 
-seeds <- c(0,0,2,0,11,0) #The random seed used
-fun <- c(1,2,3,4,5,6)
+seeds <- c(6,0,2,7,11,2220) #The random seed used
+fun <- c(1)#1,2,3,4,5,6)
 for (i in fun){# Making observation points
   eval(parse(text = paste("set.seed(",seeds[i],")",sep= "")))
-  eval(parse(text = paste("x",i," <- matrix(runif(", n[i]*sizes[i], ", min=0, max=1), ncol=",n[i],")",sep= "")))
+  #eval(parse(text = paste("x",i," <- matrix(runif(", n[i]*sizes[i], ", min=0, max=1), ncol=",n[i],")",sep= "")))
+  eval(parse(text = paste("x", i, " <- lhsDesign(",sizes[i] ,",", n[i], ", seed = ", seeds[i],")$design", sep="")))
   eval(parse(text = paste("x", i, " <- maximinSA_LHS(x", i , ")$design", sep="")))
   eval(parse(text = paste("y",i," <- fun",i, "(x",i,")",sep= "")))
   eval(parse(text = paste("xtest",i," <- matrix(runif(", 10000*n[i], ", min=0, max=1), ncol=",n[i],")",sep= "")))
@@ -59,14 +60,15 @@ for(i in fun){
                           constraints[i],"')",sep= "")))
 }
 
-tolPrec <- c(1e-4, 1e-7, 1e-7, 5e-5, 1e-7, 1e-7)
+tolPrec <- c(1e-4, 1e-7, 1e-7, 5e-5, 1e-7, 5e-8)
 tolCriteria <- c(1e-6, 1e-7, 1e-7, 1e-6, 1e-7, 5e-7)
+alpha <- c(1/2, 1/2, 1/2, 1/2, 1/2, 1)
 for (i in fun){# Making observation points
   message("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! FUNCTION " , i, "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
   eval(parse(text = paste("res",i, " <- BAGPMaxMod(model",i,", max_iter = (7*",n[i],
                           "), print_iter = FALSE, nClusters = 12, GlobalconstrType= const[[",
                           i, "]], Estim_varnoise = TRUE, tolPrecision = ",tolPrec[i], 
-                          ", tolCriteria = ", tolCriteria[i]  ,", Block_max_size = 3)", sep=""
+                          ", tolCriteria = ", tolCriteria[i]  ,", Block_max_size = 3, alpha = ", alpha[i], ")", sep=""
   )))
   eval(parse(text = paste("model",i," <- res", i,  "[[1]]", sep= "")))
 }
@@ -158,14 +160,14 @@ f63 <- function(x) {
 #     eval(parse(text = paste("s",k,j," <- s",k,j, "/N",sep= "")))
 #   }
 # }
-
-xplot <- 0:100/100
-yplot <- 0:100/100
+N <- 150
+xplot <- 0:N/(N+1)
+yplot <- 0:N/(N+1)
 xyplot <- as.matrix(expand.grid(xplot,yplot))
-fun <- c(1,2,3,4,6)
+fun <- c(1)#1,2,3,4,6)
 for (k in fun){
   eval(parse(text = paste("b_fun", k," <- block_fun(model", k,  ")", sep= "")))
-  xy <- matrix(0, nrow=10201, ncol=, n[k])
+  xy <- matrix(0, nrow=(N+1)^2, ncol=, n[k])
   for (j in 1:length(partitions[[k]])){
     if (length(partitions[[k]][[j]])==2){
       xy[,partitions[[k]][[j]]] <- xyplot
@@ -181,40 +183,41 @@ for (k in fun){
 ################################# Function 1 ########################################
 par(mfrow = c(1,2), mar=c(1,1,1,1))
 
-persp3D(xplot, yplot, matrix(z11, ncol=101),
+persp3D(xplot, yplot, matrix(z11, ncol=(N+1)),
         xlab="x", ylab="y", zlab="z", theta = 30, phi = 10, expand = 0.5,
         main = "Target function f11")
 points3D(x1[, partitions[[1]][[1]][1]], x1[, partitions[[1]][[1]][2]],
          y11, pch = 20, cex = 2,  col = "black", add = TRUE)
-persp3D(xplot, yplot, matrix(z1[[2]], ncol=101),
+persp3D(xplot, yplot, matrix(z1[[2]], ncol=(N+1)),
         xlab="x", ylab="y", zlab="z", theta = 30, phi = 10, expand = 0.5,
         main = "Predictor function of f11")
 points3D(x1[, partitions[[1]][[1]][1]], x1[, partitions[[1]][[1]][2]],
          y11, pch = 20, cex = 2,  col = "black", add = TRUE)
 
 
-persp3D(xplot, yplot, matrix(z12, ncol=101),
+persp3D(xplot, yplot, matrix(z12, ncol=(N+1)),
         xlab="x", ylab="y", zlab="y", theta = 30, phi = 10, expand = 0.5,
         main = "Target function f11")
 points3D(x1[, partitions[[1]][[2]][1]], x1[, partitions[[1]][[2]][2]],
          y12, pch = 20, cex = 2,  col = "black", add = TRUE)
-persp3D(xplot, yplot, matrix(z1[[1]], ncol=101),
+persp3D(xplot, yplot, matrix(z1[[1]], ncol=(N+1)),
         xlab="x", ylab="y", zlab="y", theta = 30, phi = 10, expand = 0.5,
         main = "Predictor function of f12")
 points3D(x1[, partitions[[1]][[2]][1]], x1[, partitions[[1]][[2]][2]],
          y12, pch = 20, cex = 2,  col = "black", add = TRUE)
 
-#plot(xplot,matrix(z1[[1]], ncol=101)[100,] )
+plot(xplot,matrix(z1[[1]], ncol=(N+1))[1,], xlab = "x", ylab= "y" )
+plot(xplot,matrix(z1[[1]], ncol=(N+1))[150,], xlab = "x", ylab= "y" )
 ############################ Function 2 ###########################################
 
 par(mfrow = c(1,2))#, mar=c(1,1,1,1))
 
-persp3D(xplot, yplot, matrix(z21, ncol=101),
+persp3D(xplot, yplot, matrix(z21, ncol=(N+1)),
         xlab="x", ylab="y", zlab="z", theta = 30, phi = 10, expand = 0.5,
         main = "Target function f21")
 points3D(x2[, partitions[[2]][[1]][1]], x2[, partitions[[2]][[1]][2]],
          y21, pch = 20, cex = 2,  col = "black", add = TRUE)
-persp3D(xplot, yplot, matrix(z2[[1]], ncol=101),
+persp3D(xplot, yplot, matrix(z2[[1]], ncol=(N+1)),
         xlab="x", ylab="y", zlab="z", theta = 30, phi = 10, expand = 0.5,
         main = "Predictor function of f21")
 points3D(x2[, partitions[[2]][[1]][1]], x2[, partitions[[2]][[1]][2]],
@@ -222,10 +225,10 @@ points3D(x2[, partitions[[2]][[1]][1]], x2[, partitions[[2]][[1]][2]],
 
 
 plot(x2[, partitions[[2]][[2]][1]], y22, pch=19, main = "Target function f22")
-lines(xplot, matrix(z22, ncol=101)[,1], col="red")
+lines(xplot, matrix(z22, ncol=(N+1))[,1], col="red")
 
 plot(x2[, partitions[[2]][[2]][1]], y22, pch=19, main = "Predictor function of f22")
-lines(xplot, matrix(z2[[2]], ncol=101)[,1], col="blue")
+lines(xplot, matrix(z2[[2]], ncol=(N+1))[,1], col="blue")
 
 
 
@@ -233,24 +236,24 @@ lines(xplot, matrix(z2[[2]], ncol=101)[,1], col="blue")
 
 par(mfrow = c(1,2), mar=c(1,1,1,1))
 
-persp3D(xplot, yplot, matrix(z41, ncol=101),
-        xlab="x", ylab="y", zlab="z", theta = 30, phi = 10, expand = 0.5,
+persp3D(xplot, yplot, matrix(z41, ncol=(N+1)),
+        xlab="x", ylab="y", zlab="z", theta = 5, phi = 20, expand = 0.5,
         main = "Target function f41")
 points3D(x4[, partitions[[4]][[1]][1]], x4[, partitions[[4]][[1]][2]],
          y41, pch = 20, cex = 2,  col = "black", add = TRUE)
-persp3D(xplot, yplot, matrix(z4[[2]], ncol=101),
-        xlab="x", ylab="y", zlab="z", theta = 30, phi = 10, expand = 0.5,
+persp3D(xplot, yplot, matrix(z4[[1]], ncol=(N+1)),
+        xlab="x", ylab="y", zlab="z", theta = 5, phi = 20, expand = 0.5,
         main = "Predictor function of f41")
 points3D(x4[, partitions[[4]][[1]][1]], x4[, partitions[[4]][[1]][2]],
          y41, pch = 20, cex = 2,  col = "black", add = TRUE)
 
 
-persp3D(xplot, yplot, matrix(z42, ncol=101),
+persp3D(xplot, yplot, matrix(z42, ncol=(N+1)),
         xlab="x", ylab="y", zlab="y", theta = 0, phi = 10, expand = 0.5,
         main = "Target function f42")
 points3D(x4[, partitions[[4]][[2]][1]], x4[, partitions[[4]][[2]][2]],
          y42, pch = 20, cex = 2,  col = "black", add = TRUE)
-persp3D(xplot, yplot, matrix(z4[[1]], ncol=101),
+persp3D(xplot, yplot, matrix(z4[[1]], ncol=(N+1)),
         xlab="x", ylab="y", zlab="y", theta = 0, phi = 10, expand = 0.5,
         main = "Predictor function of f42")
 points3D(x4[, partitions[[4]][[2]][1]], x1[, partitions[[4]][[2]][2]],
@@ -261,34 +264,34 @@ points3D(x4[, partitions[[4]][[2]][1]], x1[, partitions[[4]][[2]][2]],
 
 par(mfrow = c(1,2), mar=c(1,1,1,1))
 
-persp3D(xplot, yplot, matrix(z61, ncol=101),
+persp3D(xplot, yplot, matrix(z61, ncol=(N+1)),
         xlab="x", ylab="y", zlab="z", theta = 60, phi = 15, expand = 0.5,
         main = "Target function f61")
 points3D(x6[, partitions[[6]][[1]][1]], x6[, partitions[[6]][[1]][2]],
          y61, pch = 20, cex = 2,  col = "black", add = TRUE)
-persp3D(xplot, yplot, matrix((z6[[3]]), ncol=101),
+persp3D(xplot, yplot, matrix((z6[[3]]), ncol=(N+1)),
         xlab="x", ylab="y", zlab="z", theta = 60, phi = 15, expand = 0.5,
         main = "Predictor function of f61")
 points3D(x6[, partitions[[6]][[1]][1]], x6[, partitions[[6]][[1]][2]],
          y61, pch = 20, cex = 2,  col = "black", add = TRUE)
 
-persp3D(xplot, yplot, matrix(z62, ncol=101),
+persp3D(xplot, yplot, matrix(z62, ncol=(N+1)),
         xlab="x", ylab="y", zlab="z", theta = 30, phi = 10, expand = 0.5,
         main = "Target function f62")
 points3D(x6[, partitions[[6]][[2]][1]], x6[, partitions[[6]][[2]][2]],
          y62, pch = 20, cex = 2,  col = "black", add = TRUE)
-persp3D(xplot, yplot, matrix(z6[[2]], ncol=101),
+persp3D(xplot, yplot, matrix(z6[[2]], ncol=(N+1)),
         xlab="x", ylab="y", zlab="z", theta = 30, phi = 10, expand = 0.5,
         main = "Predictor function of f62")
 points3D(x6[, partitions[[6]][[2]][1]], x6[, partitions[[6]][[2]][2]],
          y62, pch = 20, cex = 2,  col = "black", add = TRUE)
 
-persp3D(xplot, yplot, matrix(z63, ncol=101),
+persp3D(xplot, yplot, matrix(z63, ncol=(N+1)),
         xlab="x", ylab="y", zlab="z", theta = 30, phi = 10, expand = 0.5,
         main = "Target function f63")
 points3D(x6[, partitions[[6]][[3]][1]], x6[, partitions[[6]][[3]][2]],
          y63, pch = 20, cex = 2,  col = "black", add = TRUE)
-persp3D(xplot, yplot, matrix(z6[[1]], ncol=101),
+persp3D(xplot, yplot, matrix(z6[[1]], ncol=(N+1)),
         xlab="x", ylab="y", zlab="z", theta = 30, phi = 10, expand = 0.5,
         main = "Predictor function of f63")
 points3D(x6[, partitions[[6]][[3]][1]], x6[, partitions[[6]][[3]][2]],

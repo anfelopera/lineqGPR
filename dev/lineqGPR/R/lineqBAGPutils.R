@@ -728,54 +728,6 @@ square_norm_int <- function(model1,model2){
   }
 }
 
-#' @title Gram matrix of the basis functions (\code{"lineqBAGP"})
-#' @description Compute the Gram matrix of the basis functions for \code{"lineqBAGP"} models
-#' 
-#' @param model1 a model of BAGP
-#' @param model2 a more precise model of BAGP
-#' @param alpha a float indicating the relation between the two criteria
-#' 
-#' @return Gram matrix of the basis functions
-#'
-#' @author M. Deronzier 
-#'
-#' @references F. Bachoc, A. F. Lopez-Lopera, and O. Roustant (2020),
-#' "Sequential construction and dimension reduction of Gaussian processes under inequality
-#'  constraints".
-#' \emph{ArXiv e-prints}
-#' <arXiv:2009.04188>
-#'
-#' @export
-
-square_norm_int_2 <- function(model1,model2, alpha=0.2){
-  Gram_block <- Gram(model2$subdivision)
-  E_block <- Mat_E(model2$subdivision)
-  mat <- changement_basis_matrix(model1$partition, model2$partition, model1$subdivision,
-                                 model2$subdivision)
-  Xi <- matrix_to_block((mat%*%predict(model1,0)$xi.mod), model2$subdivision, type="rbind")
-  new.Xi <- matrix_to_block(predict(model2,0)$xi.mod, model2$subdivision, type = "rbind")
-  eta <- block_compute(Xi,"sum", new.Xi,1,-1)
-  criteria <- block_to_matrix(block_compute(block_compute(block_compute(
-    eta,"transpose"),"prod", Gram_block),"prod",eta),"sum")
-  criteria1 <- block_to_matrix(block_compute(block_compute(block_compute(
-    Xi,"transpose"),"prod", Gram_block),"prod",Xi),"sum")
-  criteria2 <- block_to_matrix(block_compute(block_compute(block_compute(
-    new.Xi,"transpose"),"prod", Gram_block),"prod",new.Xi),"sum")
-  products <- as.matrix(unlist(block_compute(block_compute(eta,"transpose"), "prod", E_block)))
-  products1 <- as.matrix(unlist(block_compute(block_compute(Xi,"transpose"), "prod", E_block)))
-  products2 <- as.matrix(unlist(block_compute(block_compute(new.Xi,"transpose"), "prod", E_block)))
-  pred <- predict(model2, model2$x)$y.mod
-  diff_norm <- norm(pred-model2$y)/(norm(pred)+norm(model2$y))
-  globcrit <- (criteria + sum(products%x%products) - sum(sapply(products, function(x) x^2)))/
-              (criteria1 + sum(products1%x%products1) - sum(sapply(products1, function(x) x^2))+
-               criteria2 + sum(products2%x%products2) - sum(sapply(products2, function(x) x^2)))
-  res <- alpha*(1-diff_norm)+globcrit
-  if (length(model1$partition)>length(model2$partition)){
-    return(res/(model2$nknots-model1$nknots+1)^1)
-  } else{
-    return(res/(model2$nknots-model1$nknots)^1)
-  }
-}
 
 #' @title Merge block (\code{"lineqBAGP"})
 #' @description take a partition and subdivision and  the numero of blocks to merge
@@ -924,7 +876,6 @@ plot_history <- function(res){
                        breaks = trans_breaks("log10", function(x) 10^x),
                        labels = trans_format("log10", math_format(10^.x)))+
     geom_label(data = df, aes(x = iteration, y = histC, label = hist))
-  
 }
 
 ######################## SECTION to plot multidimensional functions per blocks #######################
