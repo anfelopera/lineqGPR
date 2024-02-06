@@ -15,11 +15,12 @@ nblocks <- length(partition) # nb of blocks
 #   return(3*x[, 1]*x[, 3] + sin(3*x[, 2]))
 # 
 targetFun <- function(x, partition)
-   return (log(1+3*x[, 1]+x[, 3]) + sin(2*pi*x[, 2]))
+   # return (log(1+3*x[, 1]+x[, 3]) + x[, 2]^2)
+  return (3*x[, 1]*x[, 3]^2 + x[, 2]^2)
 
 # sobol()
 # building Latin hypercube sampling (LHS) design 
-nbtrain <- 30*d
+nbtrain <- 3*d
 xdesign <- lhsDesign(nbtrain, d, seed = 0)$design
 xdesign <- maximinSA_LHS(xdesign)$design
 
@@ -40,7 +41,7 @@ ytest <- targetFun(xtest, partition)
 nblock <- length(partition) # nb of blocks
 dim_block <- sapply(partition, function(x) length(x))
 
-m <- c(10,5,20)
+m <- c(2, 4, 7)
 subdivision <- vector("list", nblock)
 for (j in 1:nblocks)
   subdivision[[j]] <- lapply(1:dim_block[j],function(k) matrix(seq(0, 1, by = 1/(m[partition[[j]][k]]-1)), ncol = 1))
@@ -49,23 +50,21 @@ subdivision2[[1]][[2]]<-sort(c(subdivision2[[1]][[2]], 0.333))
 
 #### Constrained model ####
 # creating the model
+constrType <- c("monotonicity", "convexity", "convexity")
 model <- create(class = "lineqBAGP", x = xdesign, y = ydesign,
-                constrType = rep("monotonicity", nblocks), 
+                constrType = constrType, 
                 partition = partition,
                 subdivision = subdivision
                 )
 
-new.model <- BAGPMaxMod(model, max_iter = 10*ncol(model$x),
-                        reward_new_knot = 1e-4, reward_new_dim = 1e-9,
-                        print_iter = FALSE, nClusters = 1,
-                        GlobalconstrType= rep("none",3)
-                        )
+# model <- augment(model)
+# pred <- predict(model, xtest)
 
-# new.model <- BAGPMaxMod(model, max_iter = 7*ncol(model$x),
-#                         reward_new_knot = 1e-4, reward_new_dim = 1e-9,
-#                         print_iter = FALSE, nClusters = 5, tol= 1e-7,
-#                         save_history = FALSE, constrType="none"
-# )[[1]]
+# # new.model <- BAGPMaxMod(model, max_iter = 7*ncol(model$x),
+# #                         reward_new_knot = 1e-4, reward_new_dim = 1e-9,
+# #                         print_iter = FALSE, nClusters = 5, tol= 1e-7,
+# #                         save_history = FALSE, constrType="none"
+# # )[[1]]
 
 #model <- new.model
 # modifying the covariance parameters of each block
@@ -73,13 +72,16 @@ for (k in 1:nblocks)
   model$kernParam$par[[k]] <- c(1, rep(0.5, model$localParam$dim_block[k]))
 
 
+model$varnoise <- 1e-6
+
 model$localParam$sampler <- "HMC"
 model$nugget <- 1e-5
+
 model <- lineqGPOptim(model,
                       additive = TRUE, # if the model is additive
                       block = TRUE, # if the model is additive per blocks
-                      estim.varnoise = FALSE, # to add this info at the MaxMod level
-                      bounds.varnoise = c(1e-7, Inf), # to add this info at the MaxMod level
+                      estim.varnoise = TRUE, # to add this info at the MaxMod level
+                      bounds.varnoise = c(1e-7, 1e-2), # to add this info at the MaxMod level
                       lb = rep(1e-2, model$d+model$localParam$nblocks),
                       ub = c(Inf, 0.7, 0.7, Inf, 0.7), # to add this info at the MaxMod level
                       # ub = rep(Inf, model$d+model$localParam$nblocks),
@@ -91,7 +93,7 @@ model <- lineqGPOptim(model,
                       check_derivatives = TRUE)
 )
 
-model.sim <- simulate(model, nsim = 1e3, seed = 0, xtest = xtest)
+model.sim <- simulate(model, nsim = 1e1, seed = 0, xtest = xtest)
 
 #### Assessment of predictions ####
 # Q2 criterion
