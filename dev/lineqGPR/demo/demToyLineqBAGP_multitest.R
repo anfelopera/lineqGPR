@@ -6,6 +6,14 @@ library("viridis")
 library("ggplot2")
 library("scales")
 library("reshape2") 
+library("Matrix")
+library("RColorBrewer")
+library("gridExtra")
+
+library(tikzDevice)
+library(lhs)
+library(RColorBrewer)
+
 
 rm(list=ls())
 ## Functions we will study
@@ -15,7 +23,7 @@ fun1 <- function(x){ # 4 dimensional function
 }
 
 fun2 <- function(x){
-  return(10*x[,1]*x[,2] + 0.5*sin(x[,3]))
+  return(2*x[,1]*x[,2] + 0.5*sin(x[,3]))
 }
 
 fun3 <- function(x){
@@ -31,17 +39,17 @@ fun5 <- function(x) {
 }
 
 fun6 <- function(x) {
-  return(10*x[, 1]*x[, 3] + sin(x[, 2]*x[, 4]) + atan(3*x[,5]+5*x[, 6]))
+  return(2*x[, 1]*x[, 3] + sin(x[, 2]*x[, 4]) + atan(3*x[,5]+5*x[, 6]))
 }
 
 #Construction of the models
 
 n <- c(4,3,4,4,11, 6) #corresponding dim of our function
-multiplier <- c(5, 5, 4, 12, 12, 3) #number of observations per dimension
+multiplier <- c(10, 5, 4, 12, 12, 3) #number of observations per dimension
 sizes <- n*multiplier
 
-seeds <- c(6,0,2,7,11,2220) #The random seed used
-fun <- c(1)#1,2,3,4,5,6)
+seeds <- c(11,20,2,7,11,0) #The random seed used
+fun <- c(6)#1,2,3,4,5,6)
 for (i in fun){# Making observation points
   eval(parse(text = paste("set.seed(",seeds[i],")",sep= "")))
   #eval(parse(text = paste("x",i," <- matrix(runif(", n[i]*sizes[i], ", min=0, max=1), ncol=",n[i],")",sep= "")))
@@ -52,7 +60,7 @@ for (i in fun){# Making observation points
 }
 
 constraints <- c("none", "monotonicity", "monotonicity", "monotonicity", "monotonicity", "monotonicity")
-const <- c( list(c("monotonicity", "convexity", "convexity", "monotonicity")), 
+const <- c( list(c("monotonicity", "none", "none", "monotonicity")), 
                lapply(2:6, function(i) rep(constraints[i], n[i])))
   
 for(i in fun){
@@ -60,18 +68,20 @@ for(i in fun){
                           constraints[i],"')",sep= "")))
 }
 
-tolPrec <- c(1e-4, 1e-7, 1e-7, 5e-5, 1e-7, 5e-8)
-tolCriteria <- c(1e-6, 1e-7, 1e-7, 1e-6, 1e-7, 5e-7)
-alpha <- c(1/2, 1/2, 1/2, 1/2, 1/2, 1)
+tolPrec <- c(5e-5, 3e-5, 1e-7, 5e-5, 1e-7, 5e-3)
+tolCriteria <- c(1e-6, 1e-6, 1e-7, 1e-6, 1e-7, 5e-7)
+alpha <- c(1/2, 1, 1/2, 1/2, 1/2, 1)
 for (i in fun){# Making observation points
   message("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! FUNCTION " , i, "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
   eval(parse(text = paste("res",i, " <- BAGPMaxMod(model",i,", max_iter = (7*",n[i],
                           "), print_iter = FALSE, nClusters = 12, GlobalconstrType= const[[",
                           i, "]], Estim_varnoise = TRUE, tolPrecision = ",tolPrec[i], 
-                          ", tolCriteria = ", tolCriteria[i]  ,", Block_max_size = 3, alpha = ", alpha[i], ")", sep=""
+                          ", tolCriteria = ", tolCriteria[i]  ,", Block_max_size = 2, alpha = ", alpha[i],
+                          ")", sep=""
   )))
   eval(parse(text = paste("model",i," <- res", i,  "[[1]]", sep= "")))
 }
+
 
 plot_history(res1)
 plot_history(res2)
@@ -80,12 +90,21 @@ plot_history(res4)
 plot_history(res5)
 plot_history(res6)
 
+res<-res6
+history <- lapply(res$history, function(x) f(x))
+n <- length(res$history)
+iteration <- 1:n
+model <- res$model
+hist <- history[1:n]
+histC <- sqrt(res$hist_Criteria[1:n])
+histR <- sqrt(res$hist_RMSE[1:n])
+
 partitions <- list(list(c(1,4),c(2,3)), list(c(1,2), c(3)), list(c(1), c(2), c(3), c(4)),
                    list(c(1,2), c(3,4)), list(c(1,2),c(3,4,6), c(5,7), c(9), c(10,11)),
                    list(c(1,3),c(2,4), c(5,6)))
 
 nblocks <- c(2,2,4,2,5,3)
-
+#model1$varnoise <- 1e-6
 
 f11 <- function(x){ # 4 dimensional function
   return(log(0.01+3*x[,1]+2*x[,4])-0.8035706 )
@@ -95,7 +114,7 @@ f12 <- function(x){ # 4 dimensional function
 }
 
 f21 <- function(x){
-  return(10*(x[,1]*x[,2]- 1/4))
+  return(2*(x[,1]*x[,2]- 1/4))
 }
 f22 <- function(x){
   return(0.5*(sin(x[,3])-0.4596976))
@@ -164,7 +183,7 @@ N <- 150
 xplot <- 0:N/(N+1)
 yplot <- 0:N/(N+1)
 xyplot <- as.matrix(expand.grid(xplot,yplot))
-fun <- c(1)#1,2,3,4,6)
+fun <- c(2)#1,2,3,4,6)
 for (k in fun){
   eval(parse(text = paste("b_fun", k," <- block_fun(model", k,  ")", sep= "")))
   xy <- matrix(0, nrow=(N+1)^2, ncol=, n[k])
@@ -194,6 +213,8 @@ persp3D(xplot, yplot, matrix(z1[[2]], ncol=(N+1)),
 points3D(x1[, partitions[[1]][[1]][1]], x1[, partitions[[1]][[1]][2]],
          y11, pch = 20, cex = 2,  col = "black", add = TRUE)
 
+plot(xplot,matrix(z1[[2]], ncol=(N+1))[1,], xlab = "x", ylab= "y" )
+plot(xplot,matrix(z1[[2]], ncol=(N+1))[50,], xlab = "x", ylab= "y" )
 
 persp3D(xplot, yplot, matrix(z12, ncol=(N+1)),
         xlab="x", ylab="y", zlab="y", theta = 30, phi = 10, expand = 0.5,
@@ -207,7 +228,7 @@ points3D(x1[, partitions[[1]][[2]][1]], x1[, partitions[[1]][[2]][2]],
          y12, pch = 20, cex = 2,  col = "black", add = TRUE)
 
 plot(xplot,matrix(z1[[1]], ncol=(N+1))[1,], xlab = "x", ylab= "y" )
-plot(xplot,matrix(z1[[1]], ncol=(N+1))[150,], xlab = "x", ylab= "y" )
+plot(xplot,matrix(z1[[1]], ncol=(N+1))[100,], xlab = "x", ylab= "y" )
 ############################ Function 2 ###########################################
 
 par(mfrow = c(1,2))#, mar=c(1,1,1,1))
@@ -261,6 +282,7 @@ points3D(x4[, partitions[[4]][[2]][1]], x1[, partitions[[4]][[2]][2]],
 
 
 ################################## Function 6 ########################################
+
 
 par(mfrow = c(1,2), mar=c(1,1,1,1))
 

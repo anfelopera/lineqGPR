@@ -139,7 +139,7 @@ create.lineqBAGP <- function(x, y, constrType,
   
   
   for (j in 1:nblocks) { # to be checked later! We will focus on the monotonicity constraint
-    kernParam$par[[j]] <- c(sigma2 = 1^2, theta = rep(0.5, dim_block[j]))
+    kernParam$par[[j]] <- c(sigma2 = 1^2, theta = rep(1, dim_block[j]))
     
     nvar <- length(partition[[j]])
     constrParam[[j]] <- vector("list", nvar) 
