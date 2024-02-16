@@ -721,10 +721,10 @@ square_norm_int <- function(model1,model2){
   products <- as.matrix(unlist(block_compute(block_compute(eta,"transpose"),"prod",E_block)))
   if (length(model1$partition)>length(model2$partition)){
     return((criteria + sum(products%x%products) - sum(sapply(products, function(x) x^2)))
-           /(model2$nknots-model1$nknots+2)^(1.4))
+           /(model2$nknots-model1$nknots+2)^(1.5))
   } else{
     return((criteria + sum(products%x%products) - sum(sapply(products, function(x) x^2)))
-           /(model2$nknots-model1$nknots)^(1.4))
+           /(model2$nknots-model1$nknots)^(1.5))
   }
 }
 
@@ -857,25 +857,27 @@ f <- function(x){
 #'
 #' @export
 plot_history <- function(res){
-  res
   history <- lapply(res$history, function(x) f(x))
   n <- length(res$history)
   iteration <- 1:n
   model <- res$model
   hist <- history[1:n]
   histC <- sqrt(res$hist_Criteria[1:n])
-  histR <- sqrt(res$hist_diffnorm[1:n])
+  histR <- sqrt(res$hist_RMSE[1:n])
   
   choices <- res$history
-  df <- data.frame(iter=iteration, L2Criteria = histC, RMSE=histR)
+  df <- data.frame(iter=iteration, L2Criterion = histC, SMSE=histR^2)
   data_long <- melt(df, id = "iter") 
   
-  ggplot()+
+  fig <- ggplot()+
     geom_line(data = data_long, aes(x = iter, y= value, color = variable))+
     scale_y_continuous(trans = log10_trans(),
                        breaks = trans_breaks("log10", function(x) 10^x),
                        labels = trans_format("log10", math_format(10^.x)))+
-    geom_label(data = df, aes(x = iteration, y = histC, label = hist))
+    geom_label(data = df, aes(x = iteration, y = histC, label = hist))+
+    labs(title="", y = "Criteria Values", x = "MaxMod Iteration")+
+    scale_x_continuous(breaks = seq(n), position = "top", limits = c(1,n))+
+    theme_bw()
 }
 
 ######################## SECTION to plot multidimensional functions per blocks #######################
