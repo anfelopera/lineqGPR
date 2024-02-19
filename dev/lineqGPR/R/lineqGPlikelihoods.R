@@ -250,7 +250,7 @@ logLikFun <- function(par = model$kernParam$par, model,
   # if (estim.varnoise)
   Kyy <- Kyy + varnoise*diag(nrow(Kyy))
   cholKyy <- chol(Kyy + model$kernParam$nugget*diag(nrow(Kyy)))
-  logDetKyy <- 2*sum(diag(log(cholKyy)))
+  logDetKyy <- 2*sum(log(diag(cholKyy)))
   invKyy <- chol2inv(cholKyy)
   f <- 0.5*(logDetKyy + nrow(Kyy)*log(2*pi) + t(model$y)%*%invKyy%*%model$y)
   return(f)

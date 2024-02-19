@@ -89,6 +89,7 @@ basisCompute.lineqGP <- function(x, u, d = 1) {
 #' linear system. Options: \code{twosides}, \code{oneside} (see \code{\link{bounds2lineqSys}} for more details)
 #' @param constrIdx for d > 1, a logical vector with the indices of active constrained dimensions
 #' @param rmInf If \code{TRUE}, inactive constraints are removed
+#' @param knots_pos Position of the knots (required for some constraints such convexity)
 #' (e.g. \eqn{-\infty \leq x \leq \infty}{-Inf \le x \le Inf}).
 #' 
 #' @return  A list with the linear system of inequalities: \code{list(A,l,u)} (\code{twosides}) or \code{list(M,g)} (\code{oneside}).
@@ -114,9 +115,15 @@ lineqGPSys <- function(m = nrow(A),
                        l = -Inf, u = Inf,  A = diag(m), d = length(m),
                        lineqSysType = c("twosides", "oneside"),
                        constrIdx = seq(length(m)),
-                       rmInf = TRUE) {
+                       rmInf = TRUE,
+                       knots_pos = NULL
+                       ) {
   constrType <- match.arg(constrType)
   lineqSysType <- match.arg(lineqSysType)
+  
+  if (!is.null(knots_pos) & is.list(knots_pos) & length(knots_pos) != d)
+    stop("The length of 'knots_pos' has to be equal to the input dimension")
+  
   if (constrType != "linear") {
     if (d == 1) {
       switch(constrType,
@@ -147,11 +154,18 @@ lineqGPSys <- function(m = nrow(A),
                if (length(l) == 1) l <- c(-rep(Inf, 2), rep(l, m-2))
                if (length(u) == 1) u <- c(rep(Inf, 2), rep(u, m-2))
                A <- diag(m)
-               if (m == 3) { # a bug with only 3 knots
-                 A[3, 1:2] <- c(1, -2)
-               } else {
-                 diag(A[-seq(2), -c(ncol(A)-1,ncol(A))]) <- 1
-                 diag(A[-seq(2), -c(1,ncol(A))]) <- -2
+               # if (m == 3) { # a bug with only 3 knots
+               #   A[3, 1:2] <- c(1, -2)
+               # } else {
+               #   diag(A[-seq(2), -c(ncol(A)-1,ncol(A))]) <- 1
+               #   diag(A[-seq(2), -c(1,ncol(A))]) <- -2
+               # }
+               
+               distKnots <- diff(knots_pos)
+               for (i in 3:(m)) {
+                 A[i, i-2] <- 1 / distKnots[i-2]
+                 A[i, i] <-  1 / distKnots[i-1]
+                 A[i, i-1] <- - A[i, i-2] - A[i, i]
                }
                linSys <- bounds2lineqSys(nrow(A), l, u, A, lineqSysType, rmInf)
              }, none = {
@@ -161,8 +175,8 @@ lineqGPSys <- function(m = nrow(A),
     } else {
       # For the of case convexity for d >= 2, constrType == "convexity" is a
       # weak version of convexity
-      temp <- sapply(m, lineqGPSys, constrType, l, u,
-                     lineqSysType = "twosides", rmInf = FALSE)
+      temp <- sapply(1:length(m), function(i) lineqGPSys(m[i], constrType, l, u,
+                     lineqSysType = "twosides", rmInf = FALSE, knots_pos = knots_pos[[i]]) )
       Abase <- temp[1, ]
       lbase <- temp[2, ]
       ubase <- temp[3, ]
@@ -179,14 +193,17 @@ lineqGPSys <- function(m = nrow(A),
                         d, d, byrow = TRUE)
       diag(ubnames) <- paste("ubase[[",seq(d),"]]", sep = "")
       A <- l <- u <- c()
-      for (k in constrIdx) {
-        Atemp <- eval(parse(text = paste(Anames[k, ], collapse = " %x% ")))
-        A <- rbind(A, Atemp)
-        lbtemp <- eval(parse(text = paste(lbnames[k, ], collapse = " %x% ")))
-        l <- c(l, lbtemp)
-        ubtemp <- eval(parse(text = paste(ubnames[k, ], collapse = " %x% ")))
-        u <- c(u, ubtemp)
-      }
+      
+      # if (length(constrIdx) < d) {
+        for (k in constrIdx) {
+          Atemp <- eval(parse(text = paste(Anames[k, ], collapse = " %x% ")))
+          A <- rbind(A, Atemp)
+          lbtemp <- eval(parse(text = paste(lbnames[k, ], collapse = " %x% ")))
+          l <- c(l, lbtemp)
+          ubtemp <- eval(parse(text = paste(ubnames[k, ], collapse = " %x% ")))
+          u <- c(u, ubtemp)
+        }
+      # }
       linSys <- bounds2lineqSys(nrow(A), l, u, A, lineqSysType, rmInf)
     }
   } else {
@@ -265,7 +282,7 @@ create.lineqGP <- function(x, y, constrType, m = NULL) {
   # creating the full list for the model
   model <- list(x = x, y = y, constrType = constrType,  ulist = u,
                 d = d, constrIdx = seq(d), varnoise = 0,
-                localParam = localParam, kernParam = kernParam)
+                localParam = localParam, kernParam = kernParam, varnoise = 0)
   model$bounds <- c()
   
   if (any(constrType == "none")) {
@@ -407,10 +424,10 @@ augment.lineqGP <- function(x, ...) {
       bounds <- matrix(bounds, ncol = 2)
       lsys <- lineqGPSys(m, model$constrType[i], bounds[i,1], bounds[i,2],
                          d = model$d, constrIdx = model$constrIdx,
-                         lineqSysType = "oneside")
+                         lineqSysType = "oneside", knots_pos = u)
       lsys2 <- lineqGPSys(m, model$constrType[i], bounds[i,1], bounds[i,2],
                           d = model$d, constrIdx = model$constrIdx,
-                          rmInf = FALSE)
+                          rmInf = FALSE, knots_pos = u)
     }
     # oneside linear structure for QP.solver: M = [Lambda,-Lambda] and g = [-lb,ub]
     M <- rbind(M, lsys$M)
@@ -513,8 +530,7 @@ predict.lineqGP <- function(object, xtest, return_model = FALSE, ...) {
   # given the interpolation points
   GammaPhit <- model$Gamma %*% t(model$Phi)
   PhiGammaPhit <- model$Phi %*% GammaPhit 
-  if (model$varnoise != 0)
-    PhiGammaPhit <- PhiGammaPhit + model$varnoise*diag(nrow(model$Phi))
+  PhiGammaPhit <- PhiGammaPhit + (model$varnoise + model$kernParam$nugget)*diag(nrow(model$Phi))
   invPhiGammaPhit <- chol2inv(chol(PhiGammaPhit))
   pred$mu <- GammaPhit %*% invPhiGammaPhit %*% model$y
   pred$Sigma <- model$Gamma - GammaPhit %*% invPhiGammaPhit %*% t(GammaPhit)
@@ -529,6 +545,7 @@ predict.lineqGP <- function(object, xtest, return_model = FALSE, ...) {
   invSigma <- chol2inv(chol(pred$Sigma))
   pred$xi.map <- solve.QP(invSigma, t(pred$mu) %*% invSigma,
                           t(model$lineqSys$M), model$lineqSys$g)$solution
+  pred$ymap <- pred$Phi.test %*% pred$xi.map
   if (return_model)
     pred$model <- model
   return(pred)
@@ -615,7 +632,7 @@ simulate.lineqGP <- function(object, nsim = 1, seed = NULL, xtest, ...) {
 
   # listing control terms
   control <- as.list(unlist(model$localParam$samplingParam))
-  control$mvec <- model$localParam$mvec # for HMC
+  control$mvec <- sum(model$localParam$mvec) # for HMC
   control$constrType <- model$constrType # for HMC
 
   # sampling from the truncated multinormal
@@ -637,6 +654,7 @@ simulate.lineqGP <- function(object, nsim = 1, seed = NULL, xtest, ...) {
   
   simModel$xi.map <- pred$xi.map
   simModel$xi.sim <- qr.solve(pred$Lambda, eta)
+  simModel$ymap <- pred$ymap
   simModel$ysim <- pred$Phi.test %*% simModel$xi.sim
   class(simModel) <- class(model)
   return(simModel)

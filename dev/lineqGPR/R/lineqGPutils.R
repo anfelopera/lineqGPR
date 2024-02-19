@@ -569,6 +569,44 @@ ggplot.lineqGP <- function(data, mapping, ytest = NULL,
 plot.lineqAGP <- function(x, y, ...)
   plot.lineqGP(x, y, ...)
 
+#' @title Plot for the \code{"lineqTP"} S3 Class
+#' @description Plot for the \code{"lineqTP"} S3 class.
+#' See \code{\link{plot.lineqGP}} for more details.
+#' 
+#' @param x an object with \code{"lineqTP"} S3 class.
+#' @param y not used.
+#' @param ... further arguments passed to or from other methods.
+#' 
+#' @return Plot with the \code{"lineqTP"} model.
+#'
+#' @seealso \code{\link{ggplot.lineqGP}}, \code{\link{plot}}
+#' 
+#' @author A. F. Lopez-Lopera
+#'
+#' @method plot lineqTP
+#' @export
+plot.lineqTP <- function(x, y, ...)
+  plot.lineqGP(x, y, ...)
+
+#' @title Plot for the \code{"lineqTP"} S3 Class
+#' @description Plot for the \code{"lineqTP"} S3 class.
+#' See \code{\link{plot.lineqGP}} for more details.
+#' 
+#' @param x an object with \code{"lineqTP"} S3 class.
+#' @param y not used.
+#' @param ... further arguments passed to or from other methods.
+#' 
+#' @return Plot with the \code{"lineqTP"} model.
+#'
+#' @seealso \code{\link{ggplot.lineqGP}}, \code{\link{plot}}
+#' 
+#' @author A. F. Lopez-Lopera
+#'
+#' @method ggplot lineqTP
+#' @export
+ggplot.lineqTP <- function(x, y, ...)
+  ggplot.lineqGP(x, y, ...)
+
 #' @title List of blocks
 #' @description Create a list according to a given a partition of set $\{1,cdots,D\}$.
 #' 
