@@ -43,7 +43,7 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 20*ncol(model$x),
   iter<- 1
   history <- list()
   hist_Criteria <- c()
-  hist_RMSE <- c()
+  hist_SMSE <- c()
   if (save_models){
     hist_models <- list()
   }
@@ -93,14 +93,13 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 20*ncol(model$x),
                               reward_new_dim, reward_new_knot, Estim_varnoise, alpha, beta)[[2]]
         }))
     }
-    if(min(abs(Criteria[2,]))>0){
+    if(min(abs(Criteria[2,]))>0){# We construct the criteria ratio of the two firsts
       Criteria <- rbind(Criteria, Criteria[1,]/(abs(Criteria[2,]))^alpha)
       maximum <- max(Criteria[3,])
       imax <- which(Criteria[3,] == maximum)
     }
     else {
       imax <- which(Criteria[2,] == 0)
-      
     }
     message("Criteria : ")
     print(Criteria)
@@ -114,8 +113,8 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 20*ncol(model$x),
       if (nClusters > 1)
         parallel::stopCluster(cl)
       names(history) <- paste("Iter ", 1:length(history), sep="") 
-      res <- list(model, history, hist_Criteria, hist_RMSE)
-      names(res) <- c("model", "history", "hist_Criteria", "hist_RMSE")
+      res <- list(model, history, hist_Criteria, hist_SMSE)
+      names(res) <- c("model", "history", "hist_Criteria", "hist_SMSE")
       return(res)
     }
     if (length( options_expand[[imax]])==1){
@@ -125,7 +124,7 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 20*ncol(model$x),
                               model$partition[[options_expand[[imax]][[2]]]]))
     }
     hist_Criteria <- c(hist_Criteria, Criteria[1,imax])
-    hist_RMSE <- c(hist_RMSE, Criteria[2,imax])
+    hist_SMSE <- c(hist_SMSE, Criteria[2,imax])
     if(iter==1){
       model <- MaxModCriterionBAGP(model, GlobalconstrType, options_expand, activeVar, iter, imax, 
                                    Block_max_size, reward_new_dim, reward_new_knot, Estim_varnoise, alpha)[[1]]
@@ -133,7 +132,7 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 20*ncol(model$x),
       old_varnoise <- model$varnoise
       model <- MaxModCriterionBAGP(model, GlobalconstrType, options_expand, activeVar, iter, imax, Block_max_size, 
                                    reward_new_dim, reward_new_knot, Estim_varnoise, alpha, beta)[[1]]
-      model$varnoise <- min(old_varnoise+1e-4, model$varnoise, RMSE)
+      model$varnoise <- min(old_varnoise+1e-4, model$varnoise, SMSE*var(y)/nrow(x))
     }
     if(save_models){
       hist_models[[iter]] <- model
@@ -141,7 +140,7 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 20*ncol(model$x),
     partition <- model$partition
     subdivision <- model$subdivision
     nblock <- model$localParam$nblocks
-    RMSE <- Criteria[2,imax]
+    SMSE <- Criteria[2,imax]
     max_Bknots <- max(sapply(subdivision, function(l) prod(sapply(l, function(x) length(x)))))
     if(imax<=D){
       if (!activeVar[imax]){
@@ -154,23 +153,23 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 20*ncol(model$x),
     else{
       print(paste("merging block", options_expand[[imax]][1], " and block",  options_expand[[imax]][2], sep = ""))
     }
-    message(paste("Criteria = ", maximum , "  RMSE = ",
-                  RMSE, sep = ""))
+    message(paste("Criteria = ", maximum , "  SMSE = ",
+                  SMSE, sep = ""))
     message(paste("estimated varnoise", model$varnoise))
     message(paste("nknots", model$nknots))
     message("subdivision")
     print(subdivision)
-    if (RMSE/sqrt(var(model$y))<tolPrecision){# Checking if the precision over the data is sufficient
+    if (SMSE<tolPrecision){# Checking if the precision over the data is sufficient
       message("precision reached")
       if (nClusters > 1)
         parallel::stopCluster(cl)
       names(history) <- paste("Iter ", 1:length(history), sep="") 
       if(save_models){
-        res <- list(model, history, hist_Criteria, hist_RMSE, hist_models)
-        names(res) <- c("model", "history", "hist_Criteria", "hist_RMSE", "hist_models" )
+        res <- list(model, history, hist_Criteria, hist_SMSE, hist_models)
+        names(res) <- c("model", "history", "hist_Criteria", "hist_SMSE", "hist_models" )
       } else{
-        res <- list(model, history, hist_Criteria, hist_RMSE)
-        names(res) <- c("model", "history", "hist_Criteria", "hist_RMSE")
+        res <- list(model, history, hist_Criteria, hist_SMSE)
+        names(res) <- c("model", "history", "hist_Criteria", "hist_SMSE")
       }
       return(res)
     }
@@ -185,11 +184,11 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 20*ncol(model$x),
   }
   names(history) <- paste("Iter ", 1:length(history), sep="") 
   if(save_models){
-    res <- list(model, history, hist_Criteria, hist_RMSE, hist_models)
-    names(res) <- c("model", "history", "hist_Criteria", "hist_RMSE", "hist_models" )
+    res <- list(model, history, hist_Criteria, hist_SMSE, hist_models)
+    names(res) <- c("model", "history", "hist_Criteria", "hist_SMSE", "hist_models" )
   } else{
-    res <- list(model, history, hist_Criteria, hist_RMSE)
-    names(res) <- c("model", "history", "hist_Criteria", "hist_RMSE")
+    res <- list(model, history, hist_Criteria, hist_SMSE)
+    names(res) <- c("model", "history", "hist_Criteria", "hist_SMSE")
   }
   return(res)
 }
@@ -243,8 +242,8 @@ MaxModCriterionBAGP <- function(model, GlobalconstrType, options_expand, activeV
     model_update <- optimise.parameters(model_update, Estim_varnoise)
     Xi <- predict(model_update,0,0)$xi.mod
     criteria <- Xi[1]*Xi[2] + ((Xi[1]-Xi[2])**2)/3
-    diff_norm <- norm(predict(model_update, model$x)$y.mod-model$y, type= "2")^2/(var(model$y)*nrow(model$x))
-    return(list(model_update, as.matrix(c(criteria, diff_norm))))
+    SMSE <- norm(predict(model_update, model$x)$y.mod-model$y, type= "2")^2/var(model$y)
+    return(list(model_update, as.matrix(c(criteria, SMSE))))
   } else { #The partition isn't empty
     if (option_name=="case1"){# Creating a new block with one variable or a adding a knot in an already active variable
       if (activeVar[option[1]]){# adding knot in an already active variable
@@ -308,9 +307,9 @@ MaxModCriterionBAGP <- function(model, GlobalconstrType, options_expand, activeV
       }
     }
     criteria <- square_norm_int(model, model_update, beta = beta ) + new_knot*reward_new_knot + new_dim*reward_new_dim
-    diff_norm <-  norm(predict(model_update, model$x)$y.mod-model$y, type="2")/nrow(model$x)
+    SMSE <-  norm(predict(model_update, model$x)$y.mod-model$y, type="2")^2/var(model$y)
   }
-  return(list(model_update, as.matrix(c(criteria, sqrt(diff_norm)))))
+  return(list(model_update, as.matrix(c(criteria, SMSE))))
 }
 
 
@@ -454,8 +453,8 @@ construct_t <- function(t, model, choice, GlobalconstrType, alpha, beta =1
                    subdivision = subdivision1)
   model1$varnoise <- model$varnoise
   model1$kernParam <- model$kernParam
-  diff_norm <-  norm(predict(model1, model$x)$y.mod-model$y, type="2")/(sqrt(var(model$y)))
-    return(-(square_norm_int(model,model1, beta=1))/diff_norm^alpha)
+  SMSE <-  norm(predict(model1, model$x)$y.mod-model$y, type="2")^2
+    return(-(square_norm_int(model,model1, beta=1))/SMSE^alpha)
 }
 
 

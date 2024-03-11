@@ -866,7 +866,7 @@ plot_history <- function(res){
   model <- res$model
   hist <- history[1:n]
   histC <- sqrt(res$hist_Criteria[1:n])
-  histR <- sqrt(res$hist_RMSE[1:n])
+  histR <- sqrt(res$hist_SMSE[1:n])
   
   choices <- res$history
   df <- data.frame(iter=iteration, L2Criterion = histC, SMSE=histR^2)
