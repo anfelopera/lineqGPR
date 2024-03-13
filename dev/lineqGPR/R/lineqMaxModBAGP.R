@@ -66,7 +66,7 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 20*ncol(model$x),
     doParallel::registerDoParallel(cl)
   }
   #Start of the main loop, incrementing sequentially partition and subdivision 
-  while(iter < max_iter && max_Bknots< 300) {
+  while(iter <= max_iter && max_Bknots< 300) {
     message("####################### ITERATION ", iter, " ###########################")
     inactiveVar <- which(activeVar==FALSE)
     all_active <- eval(parse(text = paste("activeVar[", 1:D,"]", sep = "", collapse = "&&")))
@@ -132,7 +132,7 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 20*ncol(model$x),
       old_varnoise <- model$varnoise
       model <- MaxModCriterionBAGP(model, GlobalconstrType, options_expand, activeVar, iter, imax, Block_max_size, 
                                    reward_new_dim, reward_new_knot, Estim_varnoise, alpha, beta)[[1]]
-      model$varnoise <- min(old_varnoise+1e-4, model$varnoise, SMSE*var(y)/nrow(x))
+      model$varnoise <- min(old_varnoise+1e-4, model$varnoise, SMSE*var(model$y)/nrow(model$x))
     }
     if(save_models){
       hist_models[[iter]] <- model
@@ -177,7 +177,7 @@ BAGPMaxMod <- function(model, xtest=0,  max_iter = 20*ncol(model$x),
   }
   if (nClusters > 1)
     parallel::stopCluster(cl)
-  if (iter==max_iter){
+  if (iter>max_iter){
     message(paste("number of iteration maximal : ", max_iter," reached", sep= ""))
   } else {
     message(paste("number of knots per block reached : " , 300 ," reached", sep= ""))
@@ -242,7 +242,7 @@ MaxModCriterionBAGP <- function(model, GlobalconstrType, options_expand, activeV
     model_update <- optimise.parameters(model_update, Estim_varnoise)
     Xi <- predict(model_update,0,0)$xi.mod
     criteria <- Xi[1]*Xi[2] + ((Xi[1]-Xi[2])**2)/3
-    SMSE <- norm(predict(model_update, model$x)$y.mod-model$y, type= "2")^2/var(model$y)
+    SMSE <- norm(predict(model_update, model$x)$y.mod-model$y, type= "2")^2/sum((model$y-mean(model$y))^2)
     return(list(model_update, as.matrix(c(criteria, SMSE))))
   } else { #The partition isn't empty
     if (option_name=="case1"){# Creating a new block with one variable or a adding a knot in an already active variable
@@ -307,7 +307,7 @@ MaxModCriterionBAGP <- function(model, GlobalconstrType, options_expand, activeV
       }
     }
     criteria <- square_norm_int(model, model_update, beta = beta ) + new_knot*reward_new_knot + new_dim*reward_new_dim
-    SMSE <-  norm(predict(model_update, model$x)$y.mod-model$y, type="2")^2/var(model$y)
+    SMSE <-  norm(predict(model_update, model$x)$y.mod-model$y, type="2")^2/sum((model$y-mean(model$y))^2)
   }
   return(list(model_update, as.matrix(c(criteria, SMSE))))
 }
@@ -456,6 +456,3 @@ construct_t <- function(t, model, choice, GlobalconstrType, alpha, beta =1
   SMSE <-  norm(predict(model1, model$x)$y.mod-model$y, type="2")^2
     return(-(square_norm_int(model,model1, beta=1))/SMSE^alpha)
 }
-
-
-
