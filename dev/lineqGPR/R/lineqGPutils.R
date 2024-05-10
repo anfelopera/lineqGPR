@@ -57,6 +57,30 @@ create <- function(class, ...) {
 tmvrnorm <- function(object, nsim, ...)
   UseMethod("tmvrnorm")
 
+
+#' @title Sampling Methods of Truncated Multivariate t-Distributions
+#' @description Wrapper function with a collection of Monte Carlo and Markov Chain
+#' Monte Carlo samplers for truncated multivariate t-distributions.
+#' The function invokes particular samplers which depend on the class of the first argument.
+#' 
+#' @param object an object with:
+#'        \code{mu} (mean vector), \code{Sigma} (covariance matrix), 
+#'        \code{nu} (shape parameter)
+#'        \code{lb} (lower bound vector), \code{ub} (upper bound vector).
+#' @param nsim an integer corresponding to the number of simulations.
+#' @param ... further arguments passed to or from other methods.
+#' 
+#' @return A matrix with the sample path. Samples are indexed by columns.
+#'
+#' @seealso \code{\link{tmvrnorm.HMC}}, \code{\link{tmvrnorm.ExpT}}
+# #'          \code{\link{tmvrnorm.RSM}}, 
+#'          
+#' @author A. F. Lopez-Lopera
+#'
+#' @export
+tmvtdist <- function(object, nsim, ...)
+  UseMethod("tmvtdist")
+
 #' @title Training/test data generator according to a given Design of Experiment (DoE)
 #' @description Split the data in training/test sets according to a given DoE.
 #' 
