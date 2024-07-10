@@ -694,6 +694,7 @@ Gram <- function(subdivision, J =length(subdivision)){
 #' 
 #' @param model1 a model of BAGP
 #' @param model2 a more precise model of BAGP
+#' @param beta a scalar indicating the indice of penality for the knots difference
 #' 
 #' @return Gram matrix of the basis functions
 #'
@@ -707,7 +708,7 @@ Gram <- function(subdivision, J =length(subdivision)){
 #'
 #' @export
 
-square_norm_int <- function(model1,model2){
+square_norm_int <- function(model1, model2, beta = 1){
   Gram_block <- Gram(model2$subdivision)
   E_block <- Mat_E(model2$subdivision)
   mat <-changement_basis_matrix(model1$partition, model2$partition, model1$subdivision,
@@ -721,10 +722,10 @@ square_norm_int <- function(model1,model2){
   products <- as.matrix(unlist(block_compute(block_compute(eta,"transpose"),"prod",E_block)))
   if (length(model1$partition)>length(model2$partition)){
     return((criteria + sum(products%x%products) - sum(sapply(products, function(x) x^2)))
-           /(model2$nknots-model1$nknots+2)^(1.5))
+           /(model2$nknots-model1$nknots+2)^(beta))
   } else{
     return((criteria + sum(products%x%products) - sum(sapply(products, function(x) x^2)))
-           /(model2$nknots-model1$nknots)^(1.5))
+           /(model2$nknots-model1$nknots)^(beta))
   }
 }
 
@@ -758,24 +759,26 @@ merge_block <- function(partition, subdivision, kernParam, n1, n2){
   names(kernParam1) <- names(kernParam)[1:2]
   kernParam1$type <- kernParam$type
   kernParam1$par <- vector("list", length(partition)-1)
+  unmergedblocks <- setdiff(1:length(partition),c(n1,n2))
   if(length(partition)>2){
     for (i in 2:(length(partition)-1)){
-      partition1[[i]] <- partition[[setdiff(1:length(partition),c(n1,n2))[i-1]]]
-      subdivision1[[i]] <- subdivision[[setdiff(1:length(partition),c(n1,n2))[i-1]]]
-      kernParam1$par[[i]] <- kernParam$par[[setdiff(1:length(partition),c(n1,n2))[i-1]]]
+      partition1[[i]] <- partition[[unmergedblocks[i-1]]]
+      subdivision1[[i]] <- subdivision[[unmergedblocks[i-1]]]
+      kernParam1$par[[i]] <- kernParam$par[[unmergedblocks[i-1]]]
     }
   }
   partition1[[1]] <- c(partition[[n1]],partition[[n2]])
   subdivision1[[1]] <- c(subdivision[[n1]],subdivision[[n2]])
-  kernParam1$par[[1]] <- c(kernParam$par[[n1]][1]+kernParam$par[[n2]][1],
+  kernParam1$par[[1]] <- c((kernParam$par[[n1]][1]+kernParam$par[[n2]][1]),
                            kernParam$par[[n1]][-1], kernParam$par[[n2]][-1])
+  # The indices in the first block are not sorted so we have to sort them now
   new.partition <- lapply(partition1, function(x) sort(x))
   new.subdivision <- subdivision1
-  new.kernParam <- kernParam
+  new.kernParam <- kernParam1
   for (i in 1:length(partition1[[1]])){
     pos<-bijection(partition1, new.partition[[1]][i])
     new.subdivision[[1]][[i]]<- subdivision1[[pos[1]]][[pos[2]]]
-    new.kernParam$par[[1]][i+1] <- kernParam1$par[[pos[1]]][pos[2]+1]
+    new.kernParam$par[[1]][1+i] <- kernParam1$par[[pos[1]]][pos[2]+1]
   }
   return(list(new.partition, new.subdivision, new.kernParam))
 }
@@ -863,7 +866,7 @@ plot_history <- function(res){
   model <- res$model
   hist <- history[1:n]
   histC <- sqrt(res$hist_Criteria[1:n])
-  histR <- sqrt(res$hist_RMSE[1:n])
+  histR <- sqrt(res$hist_SMSE[1:n])
   
   choices <- res$history
   df <- data.frame(iter=iteration, L2Criterion = histC, SMSE=histR^2)

@@ -15,29 +15,31 @@ library(RColorBrewer)
 
 rm(list = ls())
 
+
+location <- paste("/home/mderonzi/Documents/Mathis/thèse/Figures/BAGP/figs/")
 #setwd(dirname(rstudioapi::getSourceEditorContext()$path))
 
 fun <- function(x) {
   return(2*x[, 1]*x[, 3] + sin(x[, 2]*x[, 4]) + atan(3*x[,5]+5*x[, 6]))
 }
-
-D <- 6
+activeD <- 6
+D <- 26
 multiplier <- 7
-size <- D*multiplier
+size <- activeD*multiplier
 tolPrec <- 1e-4
 tolCriteria <- 5e-7
 alpha <- 1/2
 
 constraint <- rep("monotonicity", D)
 
-nbTrial <- 20
+nbTrial <- 10
 nbExp <- 1
-maxiter <- 22
+maxiter <- 14
 
 Hist <- list()
 models <- list()
 for (i in 1:nbTrial){
-  xdesign <- lhsDesign(size,D, seed = 2*i)$design
+  xdesign <- lhsDesign(size, D, seed = (2*i))$design
   xdesign <- maximinSA_LHS(xdesign)$design
   ydesign <- fun(xdesign)
   model <- create(class = 'lineqBAGP', x = xdesign, y = ydesign, constrType = constraint)
@@ -51,7 +53,7 @@ for (i in 1:nbTrial){
 #Computation of Q2 values
 
 N <- 10^5
-maxiter <- 17
+
 Q2 <- matrix(0, nrow = nbTrial, ncol= maxiter) 
 xtest <- lhsDesign(N, D, seed = i)$design
 ytest <- fun(xtest)
@@ -67,12 +69,13 @@ for (i in 1:nbTrial){
   }
 }
 
+#Q2 <- 1-(1e-5)*(1-Q2)
 
 Res <- list(Hist, models, Q2)
-save(Res, file = "ResMaxMod")
-unlink("/home/mderonzi/Documents/Mathis/thèse/lineqGPR/dev/lineqGPR/Res/ResMaxMod")
+save(Res, file = "ResMaxModHighDim")
+#unlink("/home/mderonzi/Documents/Mathis/thèse/lineqGPR/dev/lineqGPR/Res/ResMaxModHighDim")
 
-maxiter<- 17
+#maxiter<- 16
 Q2 <- Q2[,(1:maxiter)]
 
 iterSeq <- seq(maxiter)
@@ -92,28 +95,28 @@ viridisPalette[idxQ2medSort] <- viridisPalette
 #magmaPalette <- magma_pal()(maxiter)
 viridisPalette[idxQ2medSort] <- viridisPalette
 
-filename <- paste("Example1Q2boxplot.tex", sep = "")
-tikz(filename, standAlone = TRUE, width = 6, height = 4)
+filename <- paste(location,"toolQ2boxplot.tex", sep = "")
+tikz(filename, standAlone = TRUE, width = 4, height = 5)
 ggplot(ggData, aes(x=iter, y=-log10(1-Q2), fill = Q2med)) +
   geom_boxplot(width =0.5, outlier.alpha = 0) +
   theme_bw() +
   theme(legend.position="bottom") +
   geom_jitter(width=0.1, alpha=0.5, size = 0.2) +
   scale_fill_manual(values=viridisPalette) + 
-  scale_x_discrete(name ="MaxMod iteration") + 
+  scale_x_discrete(name ="MaxMod iteration", position = "top") + 
   theme(legend.position = "none") +
   scale_y_continuous(name ="$-\\log(1-Q^2)$", breaks = 
   -round(log10(1-c(seq(0.2, 0.8, 0.2), 0.9, 0.95, 0.975, 0.99, 0.995, 0.999)), digits = 2),
   sec.axis = sec_axis(~ -10^(-.)+1 , name = "$Q^2$", 
   breaks = c(seq(0.2, 0.8, 0.2), 0.9, 0.95, 0.975, 0.99, 0.995, 0.999)))
 dev.off()
-tools::texi2dvi(filename,pdf=T,clean=TRUE)
+#tools::texi2dvi(filename,pdf=T,clean=TRUE)
 
 
 
-# Installing the package
+####### CHOICES OF MAXMOD #######
 
-
+nbTrial <- 10
 optDecision1 <- matrix(0, nbTrial, maxiter)
 optDecision2 <- matrix(0, nbTrial, maxiter)
 optDecision3 <- matrix(0, nbTrial, maxiter)
@@ -156,14 +159,45 @@ fig1 <- ggplot(data=df, aes(activedim, iter)) +
        side= "left") +
   scale_size(breaks = seq(maxiter)) +
   scale_color_continuous(breaks = seq(maxiter), low = bluePalette[1], high = rev(bluePalette)[1]) +
-  guides(color= guide_legend(), size=guide_legend()) +
+  guides(color = guide_legend(), size=guide_legend(),shape = guide_legend()) +
   theme_bw()
-filename <- "MaxModChoices.tex"
-tikz(filename, standAlone = TRUE, width = 5, height = 5)
+filename <- paste(location,"toolChoice.tex", sep= "")
+tikz(filename, standAlone = TRUE, width = 7, height = 5)
 plot(fig1)
 dev.off()
-tools::texi2dvi(filename,pdf=T,clean=TRUE)
-plot(fig1)
+#tools::texi2dvi(filename,pdf=T,clean=TRUE)
+
+
+
+
+################################### Plot history evolution ###########################
+history <- lapply(res$history, function(x) f(x))
+n <- length(res$history)
+iteration <- 1:n
+model <- res$model
+hist <- history[1:n]
+histC <- res$hist_Criteria[1:n]
+histR <- res$hist_SMSE[1:n]
+
+choices <- res$history
+df <- data.frame(iter=iteration, L2Criterion = histC, SMSE=histR)
+data_long <- melt(df, id = "iter") 
+
+fig2 <- ggplot()+
+  geom_line(data = data_long, aes(x = iter, y= value, color = variable))+
+  scale_y_continuous(trans = log10_trans(),
+                     breaks = trans_breaks("log10", function(x) 10^x),
+                     labels = trans_format("log10", math_format(10^.x)))+
+  geom_label(data = df, aes(x = iteration, y = histC, label = hist))+
+  labs(title="", y = "Criteria Values", x = "MaxMod Iteration")+
+  scale_x_continuous(breaks = seq(n), position = "top", limits = c(1,n))+
+  theme_bw()
+plot(fig2)
+
+filename <- paste(location,"toolCriteria.tex", sep= "")
+tikz(filename, standAlone = TRUE, width = 8, height = 5)
+plot(fig2)
+dev.off()
 
 # fig2 <- ggplot(data=df, aes(activedim, iter)) +
 #   geom_count(aes(activeblock1, iter, size=after_stat(..n..), color=after_stat(..n..)), shape = 8) +
